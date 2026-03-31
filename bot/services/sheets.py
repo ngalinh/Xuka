@@ -22,7 +22,15 @@ def _get_client() -> gspread.Client:
 def _get_worksheet() -> gspread.Worksheet:
     client = _get_client()
     spreadsheet = client.open_by_url(SPREADSHEET_URL)
-    return spreadsheet.worksheet(SHEET_NAME)
+    try:
+        ws = spreadsheet.worksheet(SHEET_NAME)
+    except gspread.exceptions.WorksheetNotFound:
+        ws = spreadsheet.add_worksheet(title=SHEET_NAME, rows=1000, cols=7)
+    # Ensure headers exist
+    row1 = ws.row_values(1)
+    if not row1:
+        ws.update("A1:G1", [["Ngay", "Loai", "Danh muc", "So tien", "Ghi chu", "Nguoi nhap", "Thoi gian"]])
+    return ws
 
 
 def append_entry(
