@@ -31,8 +31,14 @@ app = FastAPI(title="Xuka - Trợ lý kế toán")
 
 # --- Models ---
 
+class ButtonGroup(BaseModel):
+    label: str
+    options: list[str]
+    action: str
+
+
 class ChatRequest(BaseModel):
-    action: str  # start_thu, start_chi, input_text, select_button, confirm, cancel
+    action: str
     state: str = "IDLE"
     data: dict[str, Any] = {}
     input: str = ""
@@ -42,6 +48,7 @@ class ChatResponse(BaseModel):
     messages: list[dict[str, str]]
     buttons: list[str] = []
     button_action: str = "select_button"
+    button_groups: list[ButtonGroup] = []
     state: str = "IDLE"
     data: dict[str, Any] = {}
     done: bool = False
@@ -71,26 +78,58 @@ def _confirmation_text(data: dict) -> str:
     loai = data.get("loai", "")
     label = "KHOẢN THU" if loai == "Thu" else "KHOẢN CHI"
     ghi_chu = data.get("ghi_chu") or "(không)"
-    now = datetime.now(VN_TZ)
+    ngay = data.get("ngay_tt", datetime.now(VN_TZ).strftime("%d/%m/%Y"))
     return (
-        f"📋 {label}:\n"
-        f"• Nội dung: {data.get('noi_dung', '')}\n"
-        f"• Số tiền: {_format_amount(data.get('so_tien', 0))} VNĐ\n"
-        f"• Ngành nghề: {data.get('nganh_nghe', '')}\n"
-        f"• Danh mục: {data.get('danh_muc', '')}\n"
-        f"• PTTT: {data.get('pttt', '')}\n"
-        f"• Ghi chú: {ghi_chu}\n"
-        f"• Ngày: {now.strftime('%d/%m/%Y')}"
+        f"{label}:\n"
+        f"- Nội dung: {data.get('noi_dung', '')}\n"
+        f"- Số tiền: {_format_amount(data.get('so_tien', 0))} VNĐ\n"
+        f"- Ngành nghề: {data.get('nganh_nghe', '')}\n"
+        f"- Danh mục: {data.get('danh_muc', '')}\n"
+        f"- PTTT: {data.get('pttt', '')}\n"
+        f"- Ghi chú: {ghi_chu}\n"
+        f"- Ngày: {ngay}"
     )
 
 
 CONFIRM_BUTTONS = [
-    "✅ Xác nhận",
-    "📝 Sửa Ngành nghề",
-    "📝 Sửa Danh mục",
-    "📝 Sửa PTTT",
-    "❌ Hủy",
+    "Xác nhận",
+    "Sửa Ngành nghề",
+    "Sửa Danh mục",
+    "Sửa PTTT",
+    "Hủy",
 ]
+
+
+def _pick_response(data: dict, messages: list[dict[str, str]]) -> ChatResponse:
+    """Khi chưa có đủ Ngành nghề/Danh mục/PTTT, hiện tất cả cùng lúc."""
+    loai = data.get("loai", "Chi")
+    groups: list[ButtonGroup] = []
+
+    if not data.get("nganh_nghe"):
+        groups.append(ButtonGroup(label="Ngành nghề", options=get_unique_nganh_nghe(), action="set_nganh_nghe"))
+    if not data.get("danh_muc"):
+        groups.append(ButtonGroup(label="Danh mục Thu Chi", options=get_unique_danh_muc(loai), action="set_danh_muc"))
+    if not data.get("pttt"):
+        groups.append(ButtonGroup(label="PTTT", options=get_unique_pttt(), action="set_pttt"))
+
+    if groups:
+        messages.append({"text": "Vui lòng chọn các mục sau:", "type": "bot"})
+        return ChatResponse(
+            messages=messages,
+            button_groups=groups,
+            state="CHON_NHOM",
+            data=data,
+        )
+
+    # All filled - show confirmation
+    messages.append({"text": _confirmation_text(data), "type": "bot"})
+    return ChatResponse(
+        messages=messages,
+        buttons=CONFIRM_BUTTONS,
+        button_action="confirm_action",
+        state="XAC_NHAN",
+        data=data,
+    )
 
 
 # --- Chat endpoint ---
@@ -128,10 +167,10 @@ async def chat(req: ChatRequest) -> ChatResponse:
             data["pttt"] = pt
             messages.append({
                 "text": (
-                    f"Đã tự động nhận diện từ lịch sử:\n"
-                    f"• Ngành nghề: {nn}\n"
-                    f"• Danh mục: {dm}\n"
-                    f"• PTTT: {pt}"
+                    f"Đã tự động nhận diện:\n"
+                    f"- Ngành nghề: {nn}\n"
+                    f"- Danh mục: {dm}\n"
+                    f"- PTTT: {pt}"
                 ),
                 "type": "bot",
             })
@@ -158,8 +197,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
             )
         data["so_tien"] = amount
 
-        # If auto-mapped, skip to ghi chu
-        if data.get("nganh_nghe"):
+        if data.get("nganh_nghe") and data.get("danh_muc") and data.get("pttt"):
             return ChatResponse(
                 messages=[{"text": "Nhập ghi chú:", "type": "bot"}],
                 buttons=["Bỏ qua"],
@@ -170,82 +208,31 @@ async def chat(req: ChatRequest) -> ChatResponse:
                 input_placeholder="Ghi chú (hoặc bấm Bỏ qua)",
             )
 
-        # Otherwise ask nganh nghe
-        options = get_unique_nganh_nghe()
-        return ChatResponse(
-            messages=[{"text": "Chọn Ngành nghề:", "type": "bot"}],
-            buttons=options,
-            state="NGANH_NGHE",
-            data=data,
-        )
+        return _pick_response(data, [])
 
-    # --- IMG_NGANH_NGHE (from image upload) ---
-    if state == "IMG_NGANH_NGHE" and action == "select_button":
-        data["nganh_nghe"] = user_input
-        loai = data.get("loai", "Chi")
-        options = get_unique_danh_muc(loai)
-        return ChatResponse(
-            messages=[{"text": "Chọn Danh mục Thu Chi:", "type": "bot"}],
-            buttons=options,
-            state="IMG_DANH_MUC",
-            data=data,
-        )
+    # --- CHON_NHOM (pick from grouped buttons) ---
+    if state == "CHON_NHOM" and action in ("set_nganh_nghe", "set_danh_muc", "set_pttt"):
+        if action == "set_nganh_nghe":
+            data["nganh_nghe"] = user_input
+        elif action == "set_danh_muc":
+            data["danh_muc"] = user_input
+        elif action == "set_pttt":
+            data["pttt"] = user_input
 
-    if state == "IMG_DANH_MUC" and action == "select_button":
-        data["danh_muc"] = user_input
-        options = get_unique_pttt()
-        return ChatResponse(
-            messages=[{"text": "Chọn PTTT:", "type": "bot"}],
-            buttons=options,
-            state="IMG_PTTT",
-            data=data,
-        )
+        # Check if all filled
+        if data.get("nganh_nghe") and data.get("danh_muc") and data.get("pttt"):
+            return ChatResponse(
+                messages=[{"text": "Nhập ghi chú:", "type": "bot"}],
+                buttons=["Bỏ qua"],
+                button_action="skip_note",
+                state="GHI_CHU",
+                data=data,
+                show_input=True,
+                input_placeholder="Ghi chú (hoặc bấm Bỏ qua)",
+            )
 
-    if state == "IMG_PTTT" and action == "select_button":
-        data["pttt"] = user_input
-        return ChatResponse(
-            messages=[{"text": _confirmation_text(data), "type": "bot"}],
-            buttons=CONFIRM_BUTTONS,
-            button_action="confirm_action",
-            state="XAC_NHAN",
-            data=data,
-        )
-
-    # --- NGANH_NGHE ---
-    if state == "NGANH_NGHE" and action == "select_button":
-        data["nganh_nghe"] = user_input
-        loai = data.get("loai", "Chi")
-        options = get_unique_danh_muc(loai)
-        return ChatResponse(
-            messages=[{"text": "Chọn Danh mục Thu Chi:", "type": "bot"}],
-            buttons=options,
-            state="DANH_MUC",
-            data=data,
-        )
-
-    # --- DANH_MUC ---
-    if state == "DANH_MUC" and action == "select_button":
-        data["danh_muc"] = user_input
-        options = get_unique_pttt()
-        return ChatResponse(
-            messages=[{"text": "Chọn Phương thức thanh toán (PTTT):", "type": "bot"}],
-            buttons=options,
-            state="PTTT",
-            data=data,
-        )
-
-    # --- PTTT ---
-    if state == "PTTT" and action == "select_button":
-        data["pttt"] = user_input
-        return ChatResponse(
-            messages=[{"text": "Nhập ghi chú:", "type": "bot"}],
-            buttons=["Bỏ qua"],
-            button_action="skip_note",
-            state="GHI_CHU",
-            data=data,
-            show_input=True,
-            input_placeholder="Ghi chú (hoặc bấm Bỏ qua)",
-        )
+        # Still missing some - show remaining groups
+        return _pick_response(data, [{"text": f"Đã chọn: {user_input}", "type": "bot"}])
 
     # --- GHI_CHU ---
     if state == "GHI_CHU" and action in ("input_text", "skip_note"):
@@ -260,67 +247,49 @@ async def chat(req: ChatRequest) -> ChatResponse:
 
     # --- XAC_NHAN ---
     if state == "XAC_NHAN" and action == "confirm_action":
-        if user_input == "✅ Xác nhận":
+        if user_input == "Xác nhận":
             return await _save(data)
-        if user_input == "❌ Hủy":
+        if user_input == "Hủy":
             return ChatResponse(
                 messages=[{"text": "Đã hủy thao tác.", "type": "bot"}],
                 state="IDLE",
                 data={},
                 done=True,
             )
-        if user_input == "📝 Sửa Ngành nghề":
-            options = get_unique_nganh_nghe()
+        if user_input == "Sửa Ngành nghề":
             return ChatResponse(
                 messages=[{"text": "Chọn Ngành nghề:", "type": "bot"}],
-                buttons=options,
+                buttons=get_unique_nganh_nghe(),
                 button_action="edit_nganh_nghe",
                 state="XAC_NHAN",
                 data=data,
             )
-        if user_input == "📝 Sửa Danh mục":
+        if user_input == "Sửa Danh mục":
             loai = data.get("loai", "Chi")
-            options = get_unique_danh_muc(loai)
             return ChatResponse(
-                messages=[{"text": "Chọn Danh mục Thu Chi:", "type": "bot"}],
-                buttons=options,
+                messages=[{"text": "Chọn Danh mục:", "type": "bot"}],
+                buttons=get_unique_danh_muc(loai),
                 button_action="edit_danh_muc",
                 state="XAC_NHAN",
                 data=data,
             )
-        if user_input == "📝 Sửa PTTT":
-            options = get_unique_pttt()
+        if user_input == "Sửa PTTT":
             return ChatResponse(
                 messages=[{"text": "Chọn PTTT:", "type": "bot"}],
-                buttons=options,
+                buttons=get_unique_pttt(),
                 button_action="edit_pttt",
                 state="XAC_NHAN",
                 data=data,
             )
 
     # --- Edit callbacks ---
-    if state == "XAC_NHAN" and action == "edit_nganh_nghe":
-        data["nganh_nghe"] = user_input
-        return ChatResponse(
-            messages=[{"text": _confirmation_text(data), "type": "bot"}],
-            buttons=CONFIRM_BUTTONS,
-            button_action="confirm_action",
-            state="XAC_NHAN",
-            data=data,
-        )
-
-    if state == "XAC_NHAN" and action == "edit_danh_muc":
-        data["danh_muc"] = user_input
-        return ChatResponse(
-            messages=[{"text": _confirmation_text(data), "type": "bot"}],
-            buttons=CONFIRM_BUTTONS,
-            button_action="confirm_action",
-            state="XAC_NHAN",
-            data=data,
-        )
-
-    if state == "XAC_NHAN" and action == "edit_pttt":
-        data["pttt"] = user_input
+    if state == "XAC_NHAN" and action in ("edit_nganh_nghe", "edit_danh_muc", "edit_pttt"):
+        if action == "edit_nganh_nghe":
+            data["nganh_nghe"] = user_input
+        elif action == "edit_danh_muc":
+            data["danh_muc"] = user_input
+        elif action == "edit_pttt":
+            data["pttt"] = user_input
         return ChatResponse(
             messages=[{"text": _confirmation_text(data), "type": "bot"}],
             buttons=CONFIRM_BUTTONS,
@@ -344,7 +313,6 @@ async def _save(data: dict) -> ChatResponse:
     thu = so_tien_str if loai == "Thu" else ""
     chi = so_tien_str if loai == "Chi" else ""
     ngay_tt = data.get("ngay_tt", now.strftime("%d/%m/%Y"))
-    # Parse month from ngay_tt
     try:
         thang = str(int(ngay_tt.split("/")[1]))
     except (IndexError, ValueError):
@@ -352,29 +320,23 @@ async def _save(data: dict) -> ChatResponse:
 
     try:
         append_entry(
-            thang=thang,
-            ngay_tt=ngay_tt,
+            thang=thang, ngay_tt=ngay_tt,
             nganh_nghe=data.get("nganh_nghe", ""),
             danh_muc=data.get("danh_muc", ""),
             noi_dung=data.get("noi_dung", ""),
-            thu=thu,
-            chi=chi,
+            thu=thu, chi=chi,
             pttt=data.get("pttt", ""),
             ghi_chu=data.get("ghi_chu", ""),
         )
         return ChatResponse(
             messages=[{"text": "Đã lưu thành công vào bảng tính!", "type": "bot"}],
-            state="IDLE",
-            data={},
-            done=True,
+            state="IDLE", data={}, done=True,
         )
     except Exception as e:
         logger.error("Lỗi khi lưu: %s", e)
         return ChatResponse(
             messages=[{"text": f"Lỗi khi lưu: {e}\nVui lòng thử lại.", "type": "bot"}],
-            state="IDLE",
-            data={},
-            done=True,
+            state="IDLE", data={}, done=True,
         )
 
 
@@ -397,9 +359,7 @@ async def upload_image(file: UploadFile = File(...)):
     if not ANTHROPIC_API_KEY:
         return ChatResponse(
             messages=[{"text": "Chưa cấu hình API key để đọc hình ảnh.", "type": "bot"}],
-            state="IDLE",
-            data={},
-            done=True,
+            state="IDLE", data={}, done=True,
         )
 
     contents = await file.read()
@@ -420,7 +380,6 @@ async def upload_image(file: UploadFile = File(...)):
             }],
         )
         raw_text = response.content[0].text.strip()
-        # Extract JSON from response (handle markdown code blocks)
         json_match = re.search(r"\{.*\}", raw_text, re.DOTALL)
         if not json_match:
             raise ValueError(f"Không parse được JSON: {raw_text}")
@@ -429,12 +388,9 @@ async def upload_image(file: UploadFile = File(...)):
         logger.error("Lỗi đọc hình: %s", e)
         return ChatResponse(
             messages=[{"text": f"Không thể đọc hình ảnh: {e}", "type": "bot"}],
-            state="IDLE",
-            data={},
-            done=True,
+            state="IDLE", data={}, done=True,
         )
 
-    # Build data from parsed image
     so_tien = int(parsed.get("so_tien", 0))
     noi_dung = parsed.get("noi_dung", "").strip()
     ngay = parsed.get("ngay", datetime.now(VN_TZ).strftime("%d/%m/%Y"))
@@ -449,18 +405,17 @@ async def upload_image(file: UploadFile = File(...)):
         "ngay_tt": ngay,
     }
 
-    messages: list[dict[str, str]] = []
-    messages.append({
+    messages: list[dict[str, str]] = [{
         "text": (
             f"Đã đọc hình chuyển khoản:\n"
-            f"• Số tiền: {_format_amount(so_tien)} VNĐ\n"
-            f"• Nội dung: {noi_dung}\n"
-            f"• Ngày: {ngay}\n"
-            f"• Ngân hàng: {ngan_hang}\n"
-            f"• Người nhận: {nguoi_nhan}"
+            f"- Số tiền: {_format_amount(so_tien)} VNĐ\n"
+            f"- Nội dung: {noi_dung}\n"
+            f"- Ngày: {ngay}\n"
+            f"- Ngân hàng: {ngan_hang}\n"
+            f"- Người nhận: {nguoi_nhan}"
         ),
         "type": "bot",
-    })
+    }]
 
     # Auto-map from history
     search_text = noi_dung or nguoi_nhan
@@ -471,16 +426,10 @@ async def upload_image(file: UploadFile = File(...)):
         data["danh_muc"] = dm
         data["pttt"] = pt
         messages.append({
-            "text": (
-                f"Đã tự động nhận diện từ lịch sử:\n"
-                f"• Ngành nghề: {nn}\n"
-                f"• Danh mục: {dm}\n"
-                f"• PTTT: {pt}"
-            ),
+            "text": f"Đã tự động nhận diện:\n- Ngành nghề: {nn}\n- Danh mục: {dm}\n- PTTT: {pt}",
             "type": "bot",
         })
     else:
-        # Try mapping by bank name for PTTT
         bank_pttt_map = {
             "MB": "MB LB", "MBBank": "MB LB", "MB Bank": "MB LB",
             "Techcombank": "Tech Dzuong", "TCB": "Tech Dzuong",
@@ -491,25 +440,7 @@ async def upload_image(file: UploadFile = File(...)):
                 data["pttt"] = val
                 break
 
-    # If not fully mapped, ask user to select
-    if not data.get("nganh_nghe"):
-        messages.append({"text": "Chọn Ngành nghề:", "type": "bot"})
-        return ChatResponse(
-            messages=messages,
-            buttons=get_unique_nganh_nghe(),
-            state="IMG_NGANH_NGHE",
-            data=data,
-        )
-
-    # Fully mapped - show confirmation
-    messages.append({"text": _confirmation_text(data), "type": "bot"})
-    return ChatResponse(
-        messages=messages,
-        buttons=CONFIRM_BUTTONS,
-        button_action="confirm_action",
-        state="XAC_NHAN",
-        data=data,
-    )
+    return _pick_response(data, messages)
 
 
 # Mount static files (must be last)
