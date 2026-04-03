@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: xuka-ke-toan
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    branch: web-chat
+    envVars:
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: SPREADSHEET_URL
+        value: https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit
+      - key: SHEET_NAME
+        value: Thu Chi
+      - key: PYTHON_VERSION
+        value: "3.11"
