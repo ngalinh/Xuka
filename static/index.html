@@ -277,6 +277,37 @@ body {
   30% { opacity: 1; }
 }
 
+/* Image upload */
+.upload-btn {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.upload-btn:hover { background: #f0ebff; }
+.upload-btn svg { width: 22px; height: 22px; fill: var(--accent); }
+.msg img.preview {
+  max-width: 200px;
+  max-height: 280px;
+  border-radius: 8px;
+  margin-top: 4px;
+  display: block;
+}
+.paste-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
 /* Mobile */
 @media (max-width: 768px) {
   .sidebar { display: none; }
@@ -315,13 +346,18 @@ body {
     <div class="messages" id="messages"></div>
 
     <div class="bottom-area">
-      <div class="input-row hidden" id="inputArea">
-        <input type="text" id="textInput" placeholder="Nhập tin nhắn...">
+      <div class="input-row" id="inputArea">
+        <button class="upload-btn" onclick="document.getElementById('fileInput').click()" title="Upload hình chuyển khoản">
+          <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+        </button>
+        <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileUpload(event)">
+        <input type="text" id="textInput" placeholder="Nhập tin nhắn hoặc paste hình...">
         <button class="send-btn" id="sendBtn" onclick="sendText()">
           <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
         </button>
       </div>
       <div class="bottom-hint" id="bottomHint">Chọn khoản Thu hoặc Chi để bắt đầu</div>
+      <div class="paste-hint">Paste (Ctrl+V) hoặc upload hình chuyển khoản để nhập nhanh</div>
     </div>
   </div>
 </div>
@@ -468,6 +504,88 @@ function sendText() {
 textInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") sendText();
 });
+
+// Paste image support
+document.addEventListener("paste", (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith("image/")) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) uploadImage(file);
+      return;
+    }
+  }
+});
+
+function handleFileUpload(e) {
+  const file = e.target.files[0];
+  if (file) uploadImage(file);
+  e.target.value = "";
+}
+
+async function uploadImage(file) {
+  if (isProcessing) return;
+  isProcessing = true;
+  sendBtn.disabled = true;
+
+  // Show image preview as user message
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const div = document.createElement("div");
+    div.className = "msg user";
+    const img = document.createElement("img");
+    img.src = e.target.result;
+    img.className = "preview";
+    div.appendChild(img);
+    messagesEl.appendChild(div);
+    scrollBottom();
+  };
+  reader.readAsDataURL(file);
+
+  showTyping();
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    hideTyping();
+
+    conversationState = data.state;
+    conversationData = data.data;
+
+    data.messages.forEach(m => {
+      const isCard = m.text.includes("\n") && m.text.includes(":");
+      addBotMsg(m.text, isCard);
+    });
+
+    if (data.done) {
+      conversationState = "IDLE";
+      conversationData = {};
+      setTimeout(showStartButtons, 800);
+      hideInput();
+    } else {
+      if (data.buttons && data.buttons.length > 0) {
+        showInlineButtons(data.buttons, data.button_action || "select_button");
+      }
+      if (data.show_input) {
+        showInput(data.input_placeholder);
+      } else {
+        hideInput();
+        bottomHint.textContent = "Chọn một trong các lựa chọn phía trên";
+      }
+    }
+  } catch (err) {
+    hideTyping();
+    addBotMsg("Lỗi khi upload hình. Vui lòng thử lại.");
+    setTimeout(showStartButtons, 600);
+  }
+
+  isProcessing = false;
+  sendBtn.disabled = false;
+}
 
 async function send(action, input) {
   if (isProcessing) return;

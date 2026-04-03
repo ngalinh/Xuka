@@ -13,5 +13,7 @@ services:
         value: https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit
       - key: SHEET_NAME
         value: Thu Chi
+      - key: ANTHROPIC_API_KEY
+        sync: false
       - key: PYTHON_VERSION
         value: "3.11"

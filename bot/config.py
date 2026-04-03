@@ -32,3 +32,4 @@ SPREADSHEET_URL = os.getenv(
 )
 SHEET_NAME = os.getenv("SHEET_NAME", "Thu Chi")
 PORT = int(os.getenv("PORT", "8000"))
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
