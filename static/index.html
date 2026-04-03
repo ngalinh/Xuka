@@ -49,13 +49,19 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); heigh
   align-self:flex-end; background:var(--user-msg); color:#fff;
   border-radius:14px 4px 14px 14px; box-shadow:0 2px 6px rgba(124,58,237,.2);
 }
-.msg img.preview { max-width:180px;max-height:240px;border-radius:8px;margin-top:4px;display:block; }
+.msg img.preview { max-width:180px;max-height:240px;border-radius:8px;display:block; }
 
-/* Button groups */
-.btn-group { animation:fadeIn .25s ease; margin-top:2px; }
-.btn-group-label { font-size:12px; font-weight:600; color:var(--accent); margin:8px 0 4px; text-transform:uppercase; }
+/* Button groups - hiện cùng 1 khung */
+.btn-group {
+  align-self:flex-start; max-width:90%; padding:12px 16px;
+  background:var(--bot-msg); border:1px solid var(--bot-border); border-left:3px solid var(--accent);
+  border-radius:4px 14px 14px 14px; box-shadow:0 1px 3px rgba(0,0,0,.04);
+  animation:fadeIn .25s ease;
+}
+.btn-group-label { font-size:12px; font-weight:700; color:var(--accent); margin:10px 0 6px; }
+.btn-group-label:first-child { margin-top:0; }
 .btn-group-options { display:flex; flex-wrap:wrap; gap:5px; }
-.btn-group-selected { font-size:12px; color:var(--green); margin:2px 0; font-weight:500; }
+.btn-group-selected { font-size:12px; color:var(--green); margin:4px 0 0; font-weight:600; }
 
 /* Inline buttons */
 .msg-buttons { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; animation:fadeIn .2s ease; }
@@ -99,7 +105,6 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); heigh
 .send-btn:disabled { background:#c4b5fd;cursor:not-allowed; }
 .send-btn svg { width:16px;height:16px;fill:#fff; }
 .hint { text-align:center;font-size:11px;color:var(--text-light);margin-top:6px; }
-.hidden { display:none!important; }
 .typing {
   align-self:flex-start;padding:10px 14px;background:var(--bot-msg);border:1px solid var(--bot-border);
   border-radius:4px 14px 14px 14px;font-size:16px;color:var(--text-light);display:flex;gap:3px;
@@ -114,7 +119,7 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); heigh
   <div class="header"><span class="dot"></span> Xuka - Trợ lý kế toán</div>
   <div class="messages" id="messages"></div>
   <div class="bottom">
-    <div class="input-row" id="inputArea">
+    <div class="input-row">
       <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Upload hình">
         <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
       </button>
@@ -124,12 +129,12 @@ body { font-family:'Inter',-apple-system,sans-serif; background:var(--bg); heigh
         <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
       </button>
     </div>
-    <div class="hint">Paste (Ctrl+V) hoặc upload hình chuyển khoản để nhập nhanh</div>
+    <div class="hint">Paste (Ctrl+V) hoặc upload hình chuyển khoản</div>
   </div>
 </div>
 
 <script>
-let S = "IDLE", D = {}, currentAction = "select_button", processing = false;
+let S = "IDLE", D = {}, processing = false;
 const msgs = document.getElementById("messages");
 const input = document.getElementById("textInput");
 const sendBtn = document.getElementById("sendBtn");
@@ -137,7 +142,7 @@ const sendBtn = document.getElementById("sendBtn");
 showWelcome();
 
 function showWelcome() {
-  addBot("Xin chào! Tôi là Xuka - trợ lý kế toán.\nChọn khoản Thu hoặc Chi, hoặc paste hình chuyển khoản.");
+  addBot("Xin chào! Tôi là Xuka - trợ lý kế toán.\nChọn Thu hoặc Chi, hoặc paste hình chuyển khoản.");
   showStart();
 }
 
@@ -145,11 +150,8 @@ function showStart() {
   const w = mkBtnWrap();
   w.appendChild(mkBtn("Ghi Thu","green",()=>{addUser("Ghi Thu");api("start_thu","")}));
   w.appendChild(mkBtn("Ghi Chi","purple",()=>{addUser("Ghi Chi");api("start_chi","")}));
-  msgs.appendChild(w);
-  scroll();
+  msgs.appendChild(w); scroll();
 }
-
-function resetChat() { S="IDLE";D={};msgs.innerHTML="";showWelcome(); }
 
 function mkBtnWrap() { const d=document.createElement("div");d.className="msg-buttons";return d; }
 function mkBtn(t,c,fn) {
@@ -158,11 +160,19 @@ function mkBtn(t,c,fn) {
 
 function addBot(t,card) {
   const d=document.createElement("div");d.className="msg bot"+(card?" card":"");d.textContent=t;
-  msgs.appendChild(d);scroll();
+  msgs.appendChild(d); scroll();
 }
 function addUser(t) {
   const d=document.createElement("div");d.className="msg user";d.textContent=t;
-  msgs.appendChild(d);scroll();
+  msgs.appendChild(d); scroll();
+}
+function addUserImg(src) {
+  return new Promise(resolve => {
+    const d=document.createElement("div");d.className="msg user";
+    const img=document.createElement("img");img.className="preview";
+    img.onload=()=>{msgs.appendChild(d);scroll();resolve();};
+    img.src=src; d.appendChild(img);
+  });
 }
 function scroll() { requestAnimationFrame(()=>{msgs.scrollTop=msgs.scrollHeight}); }
 
@@ -173,7 +183,7 @@ function showTyping() {
 function hideTyping() { document.getElementById("typing")?.remove(); }
 
 function disableAll() {
-  msgs.querySelectorAll(".btn").forEach(b=>{b.disabled=true;b.onclick=null;});
+  msgs.querySelectorAll(".btn:not([disabled])").forEach(b=>{b.disabled=true;b.onclick=null;});
 }
 
 function btnColor(t,i) {
@@ -184,36 +194,41 @@ function btnColor(t,i) {
 }
 
 function renderButtons(buttons,action) {
-  currentAction=action;
   const w=mkBtnWrap();
   buttons.forEach((t,i)=>{
-    w.appendChild(mkBtn(t,btnColor(t,i),()=>{addUser(t);disableAll();api(currentAction,t);}));
+    w.appendChild(mkBtn(t,btnColor(t,i),()=>{addUser(t);disableAll();api(action,t);}));
   });
   msgs.appendChild(w);scroll();
 }
 
 function renderButtonGroups(groups) {
-  const container=document.createElement("div");container.className="btn-group";
+  const box=document.createElement("div");box.className="btn-group";
 
   groups.forEach(g=>{
-    const label=document.createElement("div");label.className="btn-group-label";label.textContent=g.label;
-    container.appendChild(label);
+    const lbl=document.createElement("div");lbl.className="btn-group-label";lbl.textContent=g.label;
+    box.appendChild(lbl);
+
     const opts=document.createElement("div");opts.className="btn-group-options";
     g.options.forEach((opt,i)=>{
       const b=mkBtn(opt,btnColor(opt,i),()=>{
-        addUser(opt);
-        // Mark this group as selected visually
+        // Disable this group's buttons
         opts.querySelectorAll(".btn").forEach(x=>{x.disabled=true;x.onclick=null;});
+        // Show selected
         const sel=document.createElement("div");sel.className="btn-group-selected";
-        sel.textContent="✓ "+g.label+": "+opt;
-        opts.parentNode.insertBefore(sel,opts.nextSibling);
+        sel.textContent="✓ "+opt;
+        opts.after(sel);
+        // Send to backend
         api(g.action,opt);
       });
       opts.appendChild(b);
     });
-    container.appendChild(opts);
+    box.appendChild(opts);
   });
-  msgs.appendChild(container);scroll();
+
+  msgs.appendChild(box);
+  // Ensure scroll to bottom so buttons are visible
+  setTimeout(scroll, 50);
+  setTimeout(scroll, 200);
 }
 
 function sendText() {
@@ -222,56 +237,70 @@ function sendText() {
 }
 input.addEventListener("keydown",e=>{if(e.key==="Enter")sendText()});
 
-// Paste image
+// Paste image - auto send immediately
 document.addEventListener("paste",e=>{
   const items=e.clipboardData?.items;if(!items)return;
-  for(const item of items){if(item.type.startsWith("image/")){e.preventDefault();uploadImage(item.getAsFile());return;}}
+  for(const item of items){
+    if(item.type.startsWith("image/")){
+      e.preventDefault();
+      const file=item.getAsFile();
+      if(file) uploadImage(file);
+      return;
+    }
+  }
 });
 function handleFileUpload(e){const f=e.target.files[0];if(f)uploadImage(f);e.target.value="";}
 
 async function uploadImage(file) {
-  if(processing)return;processing=true;sendBtn.disabled=true;
-  // Preview
-  const reader=new FileReader();
-  reader.onload=e=>{const d=document.createElement("div");d.className="msg user";
-    const img=document.createElement("img");img.src=e.target.result;img.className="preview";
-    d.appendChild(img);msgs.appendChild(d);scroll();};
-  reader.readAsDataURL(file);
+  if(processing)return;
+  processing=true; sendBtn.disabled=true;
+
+  // 1. Show image preview FIRST
+  const dataUrl = await new Promise(r=>{const rd=new FileReader();rd.onload=e=>r(e.target.result);rd.readAsDataURL(file);});
+  await addUserImg(dataUrl);
+
+  // 2. THEN show typing indicator (after user message)
   showTyping();
+
+  // 3. Send to backend
   try {
     const fd=new FormData();fd.append("file",file);
     const res=await fetch("/api/upload",{method:"POST",body:fd});
-    const data=await res.json();hideTyping();
+    const data=await res.json();
+    hideTyping();
     handleResponse(data);
-  } catch(err){hideTyping();addBot("Lỗi khi upload hình. Vui lòng thử lại.");setTimeout(showStart,600);}
-  processing=false;sendBtn.disabled=false;
+  } catch(err){
+    hideTyping();
+    addBot("Lỗi khi upload hình. Vui lòng thử lại.");
+    setTimeout(showStart,600);
+  }
+  processing=false; sendBtn.disabled=false;
 }
 
 async function api(action,inp) {
-  if(processing)return;processing=true;sendBtn.disabled=true;showTyping();
+  if(processing)return;
+  processing=true; sendBtn.disabled=true;
+  showTyping();
   try {
     const res=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
       body:JSON.stringify({action,state:S,data:D,input:inp})});
-    const data=await res.json();hideTyping();
+    const data=await res.json();
+    hideTyping();
     handleResponse(data);
   } catch(err){hideTyping();addBot("Lỗi kết nối.");setTimeout(showStart,600);}
-  processing=false;sendBtn.disabled=false;
+  processing=false; sendBtn.disabled=false;
 }
 
 function handleResponse(data) {
-  S=data.state;D=data.data;
-  data.messages.forEach(m=>{const card=m.text.includes("\n")&&m.text.includes(":");addBot(m.text,card);});
-
+  S=data.state; D=data.data;
+  data.messages.forEach(m=>{
+    const card=m.text.includes("\n")&&(m.text.includes(":")||m.text.includes("-"));
+    addBot(m.text,card);
+  });
   if(data.done){S="IDLE";D={};setTimeout(showStart,600);return;}
 
-  // Button groups (for picking multiple fields at once)
-  if(data.button_groups&&data.button_groups.length>0) {
-    renderButtonGroups(data.button_groups);
-  }
-  // Regular buttons
-  if(data.buttons&&data.buttons.length>0) {
-    renderButtons(data.buttons,data.button_action||"select_button");
-  }
+  if(data.button_groups&&data.button_groups.length>0) renderButtonGroups(data.button_groups);
+  if(data.buttons&&data.buttons.length>0) renderButtons(data.buttons,data.button_action||"select_button");
   if(data.show_input){input.placeholder=data.input_placeholder||"Nhập tin nhắn...";input.value="";input.focus();}
 }
 </script>
