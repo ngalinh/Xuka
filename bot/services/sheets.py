@@ -1,8 +1,9 @@
+"""Google Sheets integration - đọc/ghi dữ liệu Thu Chi."""
 from __future__ import annotations
 
 import time
 import logging
-from collections import defaultdict
+from typing import Any
 
 import gspread
 from google.oauth2.service_account import Credentials
@@ -18,14 +19,15 @@ SCOPES = [
 
 _client: gspread.Client | None = None
 
-# Cache for history mappings
+# Cache
 _mapping_cache: dict[str, tuple[str, str, str]] = {}
+_recipient_cache: dict[str, tuple[str, str, str]] = {}  # normalized_name → (nn, dm, pttt)
 _unique_nganh_nghe: list[str] = []
 _unique_danh_muc_thu: list[str] = []
 _unique_danh_muc_chi: list[str] = []
 _unique_pttt: list[str] = []
 _cache_time: float = 0
-CACHE_TTL = 1800  # 30 minutes
+CACHE_TTL = 1800
 
 
 def _get_client() -> gspread.Client:
@@ -39,13 +41,29 @@ def _get_client() -> gspread.Client:
 def _get_worksheet() -> gspread.Worksheet:
     client = _get_client()
     spreadsheet = client.open_by_url(SPREADSHEET_URL)
-    ws = spreadsheet.worksheet(SHEET_NAME)
-    return ws
+    return spreadsheet.worksheet(SHEET_NAME)
+
+
+def _extract_recipient_from_noi_dung(noi_dung: str) -> str | None:
+    """Trích tên người nhận từ nội dung, VD: 'Nga Linh ck Nguyen Huong' → 'Nguyen Huong'."""
+    nd = noi_dung.strip()
+    if not nd:
+        return None
+    # Patterns: "X ck Y", "CK cho Y", "chuyen tien Y"
+    import re
+    for pattern in [
+        r"(?:ck|chuyển khoản|chuyen khoan)\s+(?:cho\s+)?(.+)",
+        r"(.+?)\s+(?:ck|chuyển khoản)\s*$",
+    ]:
+        m = re.search(pattern, nd, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
 
 
 def _load_cache() -> None:
-    global _mapping_cache, _unique_nganh_nghe, _unique_danh_muc_thu
-    global _unique_danh_muc_chi, _unique_pttt, _cache_time
+    global _mapping_cache, _recipient_cache, _unique_nganh_nghe
+    global _unique_danh_muc_thu, _unique_danh_muc_chi, _unique_pttt, _cache_time
 
     if _cache_time and (time.time() - _cache_time) < CACHE_TTL:
         return
@@ -57,39 +75,60 @@ def _load_cache() -> None:
         logger.error("Không thể đọc dữ liệu sheet: %s", e)
         return
 
+    # Lazy import to avoid circular
+    from bot.services.memory import normalize_name
+
     mapping: dict[str, tuple[str, str, str]] = {}
+    recipient: dict[str, tuple[str, str, str]] = {}
     nganh_set: set[str] = set()
     dm_thu_set: set[str] = set()
     dm_chi_set: set[str] = set()
     pttt_set: set[str] = set()
 
     for row in all_vals[1:]:
-        if len(row) < 9:
+        if len(row) < 8:
             continue
         nn = row[2].strip()
         dm = row[3].strip()
         nd = row[4].strip()
         pt = row[7].strip()
+        gc = row[8].strip() if len(row) > 8 else ""
 
         if nn:
             nganh_set.add(nn)
         if dm:
-            if dm.startswith("THU"):
-                dm_thu_set.add(dm)
-            elif dm.startswith("CHI"):
-                dm_chi_set.add(dm)
+            (dm_thu_set if dm.startswith("THU") else dm_chi_set).add(dm)
         if pt:
             pttt_set.add(pt)
         if nd and (nn or dm or pt):
             mapping[nd] = (nn, dm, pt)
 
+        # Build recipient cache from noi_dung and ghi_chu
+        names_to_index: list[str] = []
+        # Ghi chú chứa tên người nhận (from new entries)
+        if gc and not gc.startswith("("):
+            names_to_index.append(gc)
+        # Extract from noi_dung patterns
+        extracted = _extract_recipient_from_noi_dung(nd)
+        if extracted:
+            names_to_index.append(extracted)
+        # Nội dung itself could be a name
+        if nd and len(nd.split()) <= 5:
+            names_to_index.append(nd)
+
+        for name in names_to_index:
+            key = normalize_name(name)
+            if key and len(key) > 2 and (nn or dm or pt):
+                recipient[key] = (nn, dm, pt)  # Last occurrence wins (most recent)
+
     _mapping_cache = mapping
+    _recipient_cache = recipient
     _unique_nganh_nghe = sorted(nganh_set)
     _unique_danh_muc_thu = sorted(dm_thu_set)
     _unique_danh_muc_chi = sorted(dm_chi_set)
     _unique_pttt = sorted(pttt_set)
     _cache_time = time.time()
-    logger.info("Đã tải %d mapping từ sheet", len(mapping))
+    logger.info("Đã tải %d text mappings, %d recipient mappings", len(mapping), len(recipient))
 
 
 def get_unique_nganh_nghe() -> list[str]:
@@ -99,9 +138,7 @@ def get_unique_nganh_nghe() -> list[str]:
 
 def get_unique_danh_muc(loai: str) -> list[str]:
     _load_cache()
-    if loai == "Thu":
-        return _unique_danh_muc_thu
-    return _unique_danh_muc_chi
+    return _unique_danh_muc_thu if loai == "Thu" else _unique_danh_muc_chi
 
 
 def get_unique_pttt() -> list[str]:
@@ -110,29 +147,23 @@ def get_unique_pttt() -> list[str]:
 
 
 def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
-    """Tìm mapping (ngành nghề, danh mục, pttt) từ lịch sử dựa trên nội dung."""
+    """Tìm mapping từ lịch sử dựa trên nội dung."""
     _load_cache()
-
-    # Exact match first
     if noi_dung in _mapping_cache:
         return _mapping_cache[noi_dung]
 
-    # Substring match: find best match by overlapping keywords
     noi_dung_lower = noi_dung.lower()
     best_match: str | None = None
     best_score = 0
 
     for key in _mapping_cache:
         key_lower = key.lower()
-        # Check if key contains the input or input contains the key
         if key_lower in noi_dung_lower or noi_dung_lower in key_lower:
             score = len(key)
             if score > best_score:
                 best_score = score
                 best_match = key
             continue
-
-        # Word overlap matching
         words_input = set(noi_dung_lower.split())
         words_key = set(key_lower.split())
         overlap = len(words_input & words_key)
@@ -140,28 +171,49 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
             best_score = overlap
             best_match = key
 
-    if best_match:
-        return _mapping_cache[best_match]
-    return None
+    return _mapping_cache[best_match] if best_match else None
+
+
+def find_by_recipient(recipient_name: str) -> tuple[str, str, str] | None:
+    """Tìm mapping dựa trên tên người nhận (normalized)."""
+    _load_cache()
+    from bot.services.memory import normalize_name
+    key = normalize_name(recipient_name)
+    if not key:
+        return None
+    return _recipient_cache.get(key)
 
 
 def append_entry(
-    thang: str,
-    ngay_tt: str,
-    nganh_nghe: str,
-    danh_muc: str,
-    noi_dung: str,
-    thu: str,
-    chi: str,
-    pttt: str,
-    ghi_chu: str,
+    thang: str, ngay_tt: str, nganh_nghe: str, danh_muc: str,
+    noi_dung: str, thu: str, chi: str, pttt: str, ghi_chu: str,
+    nguoi_nhan: str = "",
 ) -> None:
     """Thêm một dòng vào sheet Thu Chi."""
     ws = _get_worksheet()
+    # Lưu nguoi_nhan vào ghi_chu để future lookups
+    final_gc = nguoi_nhan if nguoi_nhan else ghi_chu
     ws.append_row(
-        [thang, ngay_tt, nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, ghi_chu],
+        [thang, ngay_tt, nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc],
         value_input_option="USER_ENTERED",
     )
-    # Invalidate cache so new entry is included in future mappings
+    global _cache_time
+    _cache_time = 0
+
+
+def append_entries(entries: list[dict[str, Any]]) -> None:
+    """Batch insert nhiều dòng cùng lúc."""
+    ws = _get_worksheet()
+    rows = []
+    for e in entries:
+        final_gc = e.get("nguoi_nhan", "") or e.get("ghi_chu", "")
+        rows.append([
+            e.get("thang", ""), e.get("ngay_tt", ""),
+            e.get("nganh_nghe", ""), e.get("danh_muc", ""),
+            e.get("noi_dung", ""), e.get("thu", ""), e.get("chi", ""),
+            e.get("pttt", ""), final_gc,
+        ])
+    if rows:
+        ws.append_rows(rows, value_input_option="USER_ENTERED")
     global _cache_time
     _cache_time = 0
