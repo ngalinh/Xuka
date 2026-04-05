@@ -411,14 +411,24 @@ function renderCard(entry){
   var ar=addRow(body,loai==="Thu"?"Thu":"Chi",fmtAmt(ocr.so_tien)+" ₫");
   ar.querySelector(".card-val").className="card-val amount"+(loai==="Thu"?" thu":"");
 
-  addSelectRow(body,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
-  var dmO=loai==="Thu"?(opts.danh_muc_thu||[]):(opts.danh_muc_chi||[]);
-  addSelectRow(body,"Danh mục","danh_muc",state,dmO);
-  addSelectRow(body,"PTTT","pttt",state,opts.pttt||[]);
+  // Zelle info
+  var isZelle=entry.is_zelle&&entry.zelle;
+  if(isZelle){
+    var z=entry.zelle;
+    addRow(body,"Loại","ZELLE → Lãi tỉ giá");
+    addRow(body,"USD","$"+z.usd);
+    var tgRow=addRow(body,"Tỉ giá mua",fmtAmt(z.ti_gia_mua));
+    tgRow.querySelector(".card-val").style.color="var(--pri)";
+  } else {
+    addSelectRow(body,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
+    var dmO=loai==="Thu"?(opts.danh_muc_thu||[]):(opts.danh_muc_chi||[]);
+    addSelectRow(body,"Danh mục","danh_muc",state,dmO);
+    addSelectRow(body,"PTTT","pttt",state,opts.pttt||[]);
+  }
   card.appendChild(body);
 
   var acts=$el("div","card-actions");
-  var sv=$el("button","card-btn save");sv.textContent="✓ Lưu vào Sheets";
+  var sv=$el("button","card-btn save");sv.textContent=isZelle?"✓ Lưu vào Lãi tỉ giá":"✓ Lưu vào Sheets";
   var savedData=null;
   sv.addEventListener("click",function(){
     sv.disabled=true;sv.textContent="Đang lưu...";
@@ -427,6 +437,7 @@ function renderCard(entry){
       nganh_nghe:state.nganh_nghe,danh_muc:state.danh_muc,pttt:state.pttt,
       noi_dung:ocr.noi_dung||ocr.nguoi_nhan,nguoi_nhan:ocr.nguoi_nhan
     };
+    if(isZelle){entryData.is_zelle=true;entryData.zelle=entry.zelle;}
     savedData=entryData;
     saveEntries([entryData],sv,function(){
       // After save success: replace buttons with Delete

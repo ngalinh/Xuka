@@ -235,3 +235,21 @@ def append_entries(entries: list[dict[str, Any]]) -> None:
         ws.append_rows(rows, value_input_option="USER_ENTERED")
     global _cache_time
     _cache_time = 0
+
+
+def append_zelle_entry(
+    ngay: str, tai_khoan_nhan: str, total_ck: int,
+    usd: float, ti_gia_mua: int, note: str = "",
+) -> None:
+    """Ghi vào sheet Lãi tỉ giá."""
+    client = _get_client()
+    ss = client.open_by_url(SPREADSHEET_URL)
+    ws = ss.worksheet("Lãi tỉ giá")
+    # Format: Ngày, Loại $, Nguồn $, Tài khoản nhận, Total CK, USD, Tỉ giá mua, Tỉ giá order, Lãi tỉ giá, Note
+    usd_str = f"${usd:,.2f}" if usd == int(usd) else f"${usd:,.2f}"
+    if usd == int(usd):
+        usd_str = f"${int(usd):,}"
+    ws.append_row([
+        "'" + ngay, "Zelle", "Mua zelle", tai_khoan_nhan,
+        f"{total_ck:,}", usd_str, f"{ti_gia_mua:,}", "", "", note,
+    ], value_input_option="USER_ENTERED")

@@ -16,6 +16,7 @@ from bot.services.mapper import map_entry
 from bot.services.memory import memory_upsert
 from bot.services.sheets import (
     append_entries,
+    append_zelle_entry,
     get_unique_nganh_nghe,
     get_unique_danh_muc,
     get_unique_pttt,
@@ -55,6 +56,31 @@ def _parse_amount(text: str) -> int | None:
     cleaned = cleaned.replace(",", "").replace(".", "")
     if cleaned.isdigit() and int(cleaned) > 0:
         return int(cleaned)
+    return None
+
+
+def _detect_zelle(note: str) -> dict | None:
+    """Detect zelle transaction from note. Returns {usd: float} or None."""
+    import re
+    if not note:
+        return None
+    note_lower = note.lower()
+    if "zelle" not in note_lower:
+        return None
+    # Extract USD amount: "$116", "116$", "116 usd", "$1,200"
+    patterns = [
+        r'\$\s*([\d,]+(?:\.\d+)?)',          # $116, $1,200
+        r'([\d,]+(?:\.\d+)?)\s*\$',          # 116$
+        r'([\d,]+(?:\.\d+)?)\s*(?:usd|USD)',  # 116 usd
+    ]
+    for pat in patterns:
+        m = re.search(pat, note)
+        if m:
+            usd_str = m.group(1).replace(",", "")
+            try:
+                return {"usd": float(usd_str)}
+            except ValueError:
+                continue
     return None
 
 
@@ -163,13 +189,17 @@ async def _process_images_inner(files, note):
 
         loai = "Thu" if ocr.loai == "thu" else "Chi"
         noi_dung = note if note else (ocr.noi_dung or ocr.nguoi_nhan)
-        entries.append({
+        ngay = ocr.ngay or datetime.now(VN_TZ).strftime("%d/%m/%Y")
+
+        # Detect zelle transaction
+        zelle = _detect_zelle(note)
+        entry_data: dict = {
             "id": f"entry_{i}",
             "ocr": {
                 "so_tien": ocr.so_tien,
                 "nguoi_nhan": ocr.nguoi_nhan,
                 "ngan_hang": ocr.ngan_hang,
-                "ngay": ocr.ngay or datetime.now(VN_TZ).strftime("%d/%m/%Y"),
+                "ngay": ngay,
                 "noi_dung": noi_dung,
             },
             "mapping": {
@@ -180,7 +210,25 @@ async def _process_images_inner(files, note):
                 "source": mapping.source,
             },
             "loai": loai,
-        })
+        }
+
+        if zelle and ocr.so_tien > 0:
+            usd = zelle["usd"]
+            ti_gia = round(ocr.so_tien / usd) if usd > 0 else 0
+            entry_data["is_zelle"] = True
+            entry_data["zelle"] = {
+                "usd": usd,
+                "ti_gia_mua": ti_gia,
+                "total_ck": ocr.so_tien,
+                "tai_khoan_nhan": ocr.nguoi_nhan,
+            }
+            # Override mapping for zelle
+            entry_data["mapping"]["nganh_nghe"] = "ORDER CHECKOUT"
+            entry_data["mapping"]["danh_muc"] = "CHI - Checkout zelle"
+            entry_data["mapping"]["confidence"] = 95
+            entry_data["mapping"]["source"] = "zelle_auto"
+
+        entries.append(entry_data)
 
     return {
         "entries": entries,
@@ -199,7 +247,25 @@ async def save_entries(req: SaveRequest):
     """Lưu entries đã confirm vào Google Sheets + update memory."""
     now = datetime.now(VN_TZ)
     rows = []
+    zelle_count = 0
     for e in req.entries:
+        # Handle zelle entries → Lãi tỉ giá sheet
+        if e.get("is_zelle") and e.get("zelle"):
+            z = e["zelle"]
+            try:
+                append_zelle_entry(
+                    ngay=e.get("ngay_tt", now.strftime("%d/%m/%Y")),
+                    tai_khoan_nhan=z.get("tai_khoan_nhan", ""),
+                    total_ck=z.get("total_ck", 0),
+                    usd=z.get("usd", 0),
+                    ti_gia_mua=z.get("ti_gia_mua", 0),
+                    note=e.get("noi_dung", ""),
+                )
+                zelle_count += 1
+            except Exception as ex:
+                logger.error("Zelle save error: %s", ex)
+            continue
+
         so_tien = e.get("so_tien", 0)
         loai = e.get("loai", "Chi")
         ngay_tt = e.get("ngay_tt", now.strftime("%d/%m/%Y"))
@@ -233,8 +299,9 @@ async def save_entries(req: SaveRequest):
                 logger.error("Memory upsert error: %s", ex)
 
     try:
-        append_entries(rows)
-        return {"success": True, "count": len(rows)}
+        if rows:
+            append_entries(rows)
+        return {"success": True, "count": len(rows) + zelle_count, "zelle_count": zelle_count}
     except Exception as e:
         logger.error("Save error: %s", e)
         return {"success": False, "error": str(e)}
