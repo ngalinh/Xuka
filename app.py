@@ -170,8 +170,6 @@ async def process_images(
             "danh_muc_chi": get_unique_danh_muc("Chi"),
             "pttt": get_unique_pttt(),
         },
-        "batch_consistent": consistent,
-        "shared_mapping": shared,
         "note": note,
     }
 
