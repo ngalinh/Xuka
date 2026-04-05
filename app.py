@@ -53,6 +53,29 @@ class SaveRequest(BaseModel):
 
 # --- Endpoints ---
 
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check sheet connection."""
+    import traceback
+    try:
+        from bot.services.sheets import _get_worksheet, _load_cache, _cache_time
+        from bot.services.sheets import _unique_nganh_nghe, _unique_danh_muc_chi, _unique_pttt
+        ws = _get_worksheet()
+        row_count = ws.row_count
+        row1 = ws.row_values(1)
+        _load_cache()
+        return {
+            "status": "ok",
+            "sheet_name": ws.title,
+            "row_count": row_count,
+            "headers": row1,
+            "cache_nganh_nghe": len(_unique_nganh_nghe),
+            "cache_danh_muc_chi": len(_unique_danh_muc_chi),
+            "cache_pttt": len(_unique_pttt),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+
 @app.get("/api/options")
 async def get_options():
     """Trả dropdown values cho frontend."""
