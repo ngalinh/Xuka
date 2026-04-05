@@ -112,7 +112,12 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 var M=document.getElementById("M"),ti=document.getElementById("ti"),sb=document.getElementById("sb"),pbar=document.getElementById("pbar"),selPanel=document.getElementById("selPanel");
 var opts={},pendingFiles=[],pendingDataUrls=[],busy=false;
 
-fetch("/api/options").then(function(r){return r.json()}).then(function(d){opts=d}).catch(function(){});
+function loadOptions(){
+  fetch("/api/options").then(function(r){return r.json()}).then(function(d){
+    if(d&&d.nganh_nghe){opts=d;console.log("Options loaded:",Object.keys(d).map(function(k){return k+":"+d[k].length}))}
+  }).catch(function(){setTimeout(loadOptions,3000)});
+}
+loadOptions();
 botMsg("Xin chào! Gửi hình chuyển khoản để ghi nhận.\nPaste hình → thêm ghi chú → Enter.");
 
 function $el(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;return e}
@@ -179,54 +184,24 @@ function onFiles(e){
 // =====================
 // SEND
 // =====================
-function onSend(){
-  if(window._waitingAmount){handleAmountInput();return}
-  var note=ti.value.trim();
-  if(pendingFiles.length>0){
-    // Show images in chat
-    for(var i=0;i<pendingDataUrls.length;i++)usrImg(pendingDataUrls[i]);
-    if(note)usrMsg(note);
-    processFiles(note);
-    ti.value="";pendingFiles=[];pendingDataUrls=[];renderPreviews();
-  }else if(note){
-    usrMsg(note);ti.value="";
-    manualEntry(note);
-  }
-}
-ti.addEventListener("keydown",function(e){if(e.key==="Enter")onSend()});
+ti.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();onSend()}});
 
-function processFiles(note){
-  if(busy)return;busy=true;sb.disabled=true;
-  showTyping();
-  var fd=new FormData();
-  // Re-read from the files we saved
-  var filesToSend=pendingFiles.length>0?pendingFiles:[];
-  // Files already cleared, use closure
-  fetch("/api/process",{method:"POST",body:fd})
-    .then(function(r){return r.json()})
-    .then(function(data){
-      hideTyping();
-      if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
-      if(data.options)opts=data.options;
-      if(data.entries.length===1)renderCard(data.entries[0]);
-      else renderBatch(data);
-      busy=false;sb.disabled=false;
-    })
-    .catch(function(err){hideTyping();botMsg("Lỗi: "+err.message);busy=false;sb.disabled=false});
-}
-
-// FIX: need to build FormData BEFORE clearing pendingFiles
+// Main send function
 onSend=function(){
   if(window._waitingAmount){handleAmountInput();return}
   var note=ti.value.trim();
+  ti.value="";
+
   if(pendingFiles.length>0){
+    // Show all images in chat as single user message
     for(var i=0;i<pendingDataUrls.length;i++)usrImg(pendingDataUrls[i]);
+    // Show note as ONE message (if any)
     if(note)usrMsg(note);
-    // Build FormData with actual files
+    // Build FormData BEFORE clearing
     var fd=new FormData();
     for(var j=0;j<pendingFiles.length;j++)fd.append("files",pendingFiles[j]);
     fd.append("note",note||"");
-    ti.value="";pendingFiles=[];pendingDataUrls=[];renderPreviews();
+    pendingFiles=[];pendingDataUrls=[];renderPreviews();
     // Send
     if(busy)return;busy=true;sb.disabled=true;showTyping();
     fetch("/api/process",{method:"POST",body:fd})
@@ -234,14 +209,14 @@ onSend=function(){
       .then(function(data){
         hideTyping();
         if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
-        if(data.options)opts=data.options;
+        if(data.options&&data.options.nganh_nghe)opts=data.options;
         if(data.entries.length===1)renderCard(data.entries[0]);
         else renderBatch(data);
         busy=false;sb.disabled=false;
       })
-      .catch(function(err){hideTyping();botMsg("Lỗi: "+err.message);busy=false;sb.disabled=false});
+      .catch(function(err){hideTyping();botMsg("Lỗi: "+(err.message||err));busy=false;sb.disabled=false});
   }else if(note){
-    usrMsg(note);ti.value="";
+    usrMsg(note);
     manualEntry(note);
   }
 };
@@ -277,8 +252,18 @@ function handleAmountInput(){
 // DROPDOWN SELECT (fixed position, renders on body)
 // =====================
 function openSelect(btnEl,title,options,currentVal,onSelect){
-  // Close any open
   selPanel.className="sel-panel";selPanel.innerHTML="";
+  if(!options||options.length===0){
+    // Try reload options
+    loadOptions();
+    var empty=$el("div","sel-panel-title");empty.textContent="Đang tải danh sách...";
+    selPanel.appendChild(empty);
+    var rect=btnEl.getBoundingClientRect();
+    selPanel.style.top=rect.bottom+4+"px";
+    selPanel.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-290))+"px";
+    selPanel.className="sel-panel open";
+    return;
+  }
   // Title
   var ttl=$el("div","sel-panel-title");ttl.textContent=title;
   selPanel.appendChild(ttl);
