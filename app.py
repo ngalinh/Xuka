@@ -240,6 +240,37 @@ async def save_entries(req: SaveRequest):
         return {"success": False, "error": str(e)}
 
 
+class DeleteRequest(BaseModel):
+    ngay_tt: str
+    noi_dung: str
+    so_tien: int
+
+
+@app.post("/api/delete")
+async def delete_entry(req: DeleteRequest):
+    """Xóa giao dịch khỏi Google Sheet dựa trên ngày + nội dung + số tiền."""
+    try:
+        from bot.services.sheets import _get_worksheet
+        ws = _get_worksheet()
+        all_vals = ws.get_all_values()
+        amt_str = _format_amount(req.so_tien)
+        for i in range(len(all_vals) - 1, 0, -1):  # Search from bottom
+            row = all_vals[i]
+            if len(row) < 8:
+                continue
+            row_ngay = row[1].replace("'", "")
+            row_nd = row[4]
+            row_thu = row[5]
+            row_chi = row[6]
+            if row_ngay == req.ngay_tt and row_nd == req.noi_dung and (row_thu == amt_str or row_chi == amt_str):
+                ws.delete_rows(i + 1)  # gspread is 1-indexed
+                return {"success": True, "deleted_row": i + 1}
+        return {"success": False, "error": "Không tìm thấy giao dịch"}
+    except Exception as e:
+        logger.error("Delete error: %s", e)
+        return {"success": False, "error": str(e)}
+
+
 @app.post("/api/chat")
 async def chat_text(note: str = Form(default="")):
     """Text-only entry - auto extract amount if present."""

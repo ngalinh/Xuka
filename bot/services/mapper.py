@@ -71,26 +71,9 @@ def map_entry(
             source = "history_recipient"
             logger.info("Recipient history match: %s", nguoi_nhan)
 
-    # 3. Sheet history by text (noi_dung)
-    if not nn and noi_dung:
-        hist = find_mapping(noi_dung)
-        if hist:
-            nn, dm, pt = hist
-            confidence = 80
-            source = "history_text"
-
-    # 4. Bank → PTTT heuristic
-    if not pt and ngan_hang:
-        bank_lower = ngan_hang.lower()
-        for bk, pttt_val in BANK_PTTT_MAP.items():
-            if bk in bank_lower:
-                pt = pttt_val
-                break
-
-    # 5. User note / noi_dung keyword inference
+    # 3. Keyword inference FIRST (more reliable than fuzzy text match)
     search_text = (user_note or "") + " " + (noi_dung or "")
     search_lower = search_text.lower()
-
     if not nn or not dm:
         from unidecode import unidecode
         search_ascii = unidecode(search_lower)
@@ -101,8 +84,24 @@ def map_entry(
                 if not dm:
                     dm = kw_dm
                 if confidence == 0:
-                    confidence = 50
-                    source = "heuristic"
+                    confidence = 70
+                    source = "keyword"
+                break
+
+    # 4. Sheet history by text (fallback if keyword didn't match)
+    if not nn and noi_dung:
+        hist = find_mapping(noi_dung)
+        if hist:
+            nn, dm, pt = hist
+            confidence = 80
+            source = "history_text"
+
+    # 5. Bank → PTTT heuristic
+    if not pt and ngan_hang:
+        bank_lower = ngan_hang.lower()
+        for bk, pttt_val in BANK_PTTT_MAP.items():
+            if bk in bank_lower:
+                pt = pttt_val
                 break
 
     # Final confidence

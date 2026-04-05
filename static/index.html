@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
-<title>Kế Toán Bot</title>
+<title>Kế toán Xuka</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--pri:#6C47FF;--bg:#F7F7F8;--white:#fff;--g1:#F0F0F3;--g2:#E0E0E5;--g3:#94949E;--text:#1A1A1E;--green:#00C853;--yellow:#FFB300;--red:#FF3B30}
@@ -96,8 +96,8 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 <body>
 <div class="app">
   <div class="hdr">
-    <div class="hdr-av"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg></div>
-    <div class="hdr-info"><div class="hdr-name">Kế Toán Bot</div><div class="hdr-st">đang hoạt động</div></div>
+    <div class="hdr-av"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="#00a0e9"/><circle cx="50" cy="55" r="35" fill="#fff"/><circle cx="38" cy="40" r="8" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="62" cy="40" r="8" fill="#fff" stroke="#000" stroke-width="2"/><circle cx="42" cy="40" r="4" fill="#000"/><circle cx="58" cy="40" r="4" fill="#000"/><circle cx="50" cy="52" r="6" fill="#e74c3c"/><path d="M50 58 Q50 68 40 65" stroke="#000" stroke-width="2" fill="none"/><path d="M50 58 Q50 68 60 65" stroke="#000" stroke-width="2" fill="none"/><line x1="20" y1="50" x2="35" y2="48" stroke="#000" stroke-width="1.5"/><line x1="20" y1="55" x2="35" y2="55" stroke="#000" stroke-width="1.5"/><line x1="20" y1="60" x2="35" y2="62" stroke="#000" stroke-width="1.5"/><line x1="80" y1="50" x2="65" y2="48" stroke="#000" stroke-width="1.5"/><line x1="80" y1="55" x2="65" y2="55" stroke="#000" stroke-width="1.5"/><line x1="80" y1="60" x2="65" y2="62" stroke="#000" stroke-width="1.5"/></svg></div>
+    <div class="hdr-info"><div class="hdr-name">Kế toán Xuka</div><div class="hdr-st">đang hoạt động</div></div>
   </div>
   <div class="msgs" id="M"></div>
   <div class="preview-bar" id="pbar"></div>
@@ -419,16 +419,35 @@ function renderCard(entry){
 
   var acts=$el("div","card-actions");
   var sv=$el("button","card-btn save");sv.textContent="✓ Lưu vào Sheets";
+  var savedData=null;
   sv.addEventListener("click",function(){
     sv.disabled=true;sv.textContent="Đang lưu...";
-    saveEntries([{
+    var entryData={
       so_tien:ocr.so_tien,loai:loai,ngay_tt:ocr.ngay,
       nganh_nghe:state.nganh_nghe,danh_muc:state.danh_muc,pttt:state.pttt,
       noi_dung:ocr.noi_dung||ocr.nguoi_nhan,nguoi_nhan:ocr.nguoi_nhan
-    }],sv);
+    };
+    savedData=entryData;
+    saveEntries([entryData],sv,function(){
+      // After save success: replace buttons with Delete
+      acts.innerHTML="";
+      var del=$el("button","card-btn skip");del.textContent="🗑 Xóa giao dịch";del.style.color="var(--red)";
+      del.addEventListener("click",function(){
+        del.disabled=true;del.textContent="Đang xóa...";
+        fetch("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({ngay_tt:savedData.ngay_tt,noi_dung:savedData.noi_dung,so_tien:savedData.so_tien})})
+          .then(function(r){return r.json()})
+          .then(function(d){
+            if(d.success){card.style.opacity=".3";botMsg("Đã xóa giao dịch.")}
+            else{del.textContent="Lỗi: "+(d.error||"");del.disabled=false}
+          })
+          .catch(function(e){del.textContent="Lỗi";del.disabled=false});
+      });
+      acts.appendChild(del);
+    });
   });
   var sk=$el("button","card-btn skip");sk.textContent="Bỏ qua";
-  sk.addEventListener("click",function(){card.style.opacity=".3";botMsg("Đã bỏ qua.")});
+  sk.addEventListener("click",function(){card.style.opacity=".3"});
   acts.appendChild(sv);acts.appendChild(sk);card.appendChild(acts);
   M.appendChild(card);scr();
 }
@@ -472,11 +491,11 @@ function addSelectRow(parent,label,field,state,options){
 // =====================
 // SAVE
 // =====================
-function saveEntries(entries,btn){
+function saveEntries(entries,btn,onSuccess){
   fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries:entries})})
   .then(function(r){return r.json()})
   .then(function(d){
-    if(d.success){botMsg("✓ Đã lưu "+d.count+" giao dịch!");btn.textContent="✓ Đã lưu";btn.style.background="var(--green)"}
+    if(d.success){botMsg("✓ Đã lưu "+d.count+" giao dịch!");btn.textContent="✓ Đã lưu";btn.style.background="var(--green)";if(onSuccess)onSuccess()}
     else{botMsg("Lỗi: "+(d.error||""));btn.disabled=false;btn.textContent="Thử lại"}
   })
   .catch(function(e){botMsg("Lỗi: "+e);btn.disabled=false;btn.textContent="Thử lại"});
