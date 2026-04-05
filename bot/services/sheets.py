@@ -248,16 +248,19 @@ def append_zelle_entry(
 
     usd_str = f"${int(usd):,}" if usd % 1 == 0 else f"${usd:,.2f}"
 
-    # Find first empty row in column A (don't use append_row - sheet has formulas in other cols)
+    # Find first empty row in column A
     col_a = ws.col_values(1)
-    next_row = len(col_a) + 1
-    # Search backwards for actual last data row
+    next_row = 2  # default after header
     for i in range(len(col_a) - 1, 0, -1):
         if col_a[i].strip():
             next_row = i + 2
             break
 
-    row_data = ["'" + ngay, "Zelle", "Mua zelle", tai_khoan_nhan,
-                f"{total_ck:,}", usd_str, f"{ti_gia_mua:,}", "", "", note]
-    ws.update(f"A{next_row}:J{next_row}", [row_data], value_input_option="USER_ENTERED")
-    logger.info("Zelle entry saved to row %d: %s → $%s, tỉ giá %s", next_row, tai_khoan_nhan, usd_str, ti_gia_mua)
+    # Write A-G (data) and J (note) separately to preserve formulas in H-I
+    ws.update(f"A{next_row}:G{next_row}", [[
+        "'" + ngay, "Zelle", "Mua zelle", tai_khoan_nhan,
+        f"{total_ck:,}", usd_str, f"{ti_gia_mua:,}",
+    ]], value_input_option="USER_ENTERED")
+    if note:
+        ws.update(f"J{next_row}", [[note]], value_input_option="USER_ENTERED")
+    logger.info("Zelle saved row %d: %s $%s tỉ giá %s", next_row, tai_khoan_nhan, usd_str, ti_gia_mua)
