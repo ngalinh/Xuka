@@ -222,32 +222,58 @@ onSend=function(){
   }
 };
 
+function resizeImage(file,maxW,callback){
+  // Resize to reduce upload size, avoid timeout
+  var reader=new FileReader();
+  reader.onload=function(e){
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width,h=img.height;
+      if(w<=maxW){callback(file);return}// No resize needed
+      var ratio=maxW/w;
+      var canvas=document.createElement("canvas");
+      canvas.width=maxW;canvas.height=Math.round(h*ratio);
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      canvas.toBlob(function(blob){
+        callback(new File([blob],file.name||"image.jpg",{type:"image/jpeg"}));
+      },"image/jpeg",0.85);
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
 function processOneByOne(files,note,idx){
   if(idx>=files.length){busy=false;sb.disabled=false;return}
   var total=files.length;
   if(total>1)botMsg("Đang xử lý ảnh "+(idx+1)+"/"+total+"...");
   showTyping();
-  var fd=new FormData();
-  fd.append("files",files[idx]);
-  fd.append("note",note||"");
-  fetch("/api/process",{method:"POST",body:fd})
-    .then(function(r){return r.json()})
-    .then(function(data){
-      hideTyping();
-      if(data.options&&data.options.nganh_nghe)opts=data.options;
-      if(data.entries&&data.entries.length>0){
-        data.entries.forEach(function(entry){renderCard(entry)});
-      }else{
-        botMsg("Không đọc được ảnh "+(idx+1));
-      }
-      // Process next image
-      processOneByOne(files,note,idx+1);
-    })
-    .catch(function(err){
-      hideTyping();
-      botMsg("Lỗi ảnh "+(idx+1)+": "+(err.message||err));
-      processOneByOne(files,note,idx+1);
-    });
+  // Resize before upload (max 1200px width)
+  resizeImage(files[idx],1200,function(resizedFile){
+    var fd=new FormData();
+    fd.append("files",resizedFile);
+    fd.append("note",note||"");
+    fetch("/api/process",{method:"POST",body:fd})
+      .then(function(r){
+        if(!r.ok)throw new Error("HTTP "+r.status);
+        return r.json();
+      })
+      .then(function(data){
+        hideTyping();
+        if(data.options&&data.options.nganh_nghe)opts=data.options;
+        if(data.entries&&data.entries.length>0){
+          data.entries.forEach(function(entry){renderCard(entry)});
+        }else{
+          botMsg("Không đọc được ảnh "+(idx+1));
+        }
+        processOneByOne(files,note,idx+1);
+      })
+      .catch(function(err){
+        hideTyping();
+        botMsg("Lỗi ảnh "+(idx+1)+": "+(err.message||err));
+        processOneByOne(files,note,idx+1);
+      });
+  });
 }
 
 function manualEntry(note){
