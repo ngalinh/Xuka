@@ -228,8 +228,8 @@ onSend=function(){
         if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
         if(data.options&&data.options.nganh_nghe)opts=data.options;
         if(data.entries.length===0){botMsg("Không đọc được ảnh nào.");busy=false;sb.disabled=false;return}
-        if(data.entries.length===1)renderCard(data.entries[0]);
-        else renderBatch(data);
+        // Always render each entry as separate card
+        data.entries.forEach(function(entry){renderCard(entry)});
         busy=false;sb.disabled=false;
       })
       .catch(function(err){clearTimeout(timer);hideTyping();botMsg("Lỗi: "+(err.name==="AbortError"?"Quá thời gian xử lý. Thử gửi ít ảnh hơn.":err.message||err));busy=false;sb.disabled=false});
@@ -354,52 +354,6 @@ function renderCard(entry){
 }
 
 // =====================
-// BATCH CARD
-// =====================
-function renderBatch(data){
-  var entries=data.entries,n=entries.length;
-  var shared=data.shared_mapping||{};
-  var state={nganh_nghe:shared.nganh_nghe||"",danh_muc:shared.danh_muc||"",pttt:shared.pttt||""};
-
-  var bhdr=$el("div","batch-hdr");
-  var h4=$el("h4");h4.textContent=(data.batch_consistent?"Áp dụng chung":"Chọn danh mục")+" cho "+n+" giao dịch";
-  bhdr.appendChild(h4);
-  addBatchSelect(bhdr,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
-  addBatchSelect(bhdr,"Danh mục","danh_muc",state,opts.danh_muc_chi||[]);
-  addBatchSelect(bhdr,"PTTT","pttt",state,opts.pttt||[]);
-  M.appendChild(bhdr);
-
-  var items=$el("div","batch-items");
-  var total=0;
-  entries.forEach(function(e){
-    var row=$el("div","batch-item");
-    var nm=$el("div","batch-item-name");nm.textContent=e.ocr.nguoi_nhan||e.ocr.noi_dung||"—";
-    var am=$el("div","batch-item-amt");am.textContent="-"+fmtAmt(e.ocr.so_tien)+" ₫";
-    row.appendChild(nm);row.appendChild(am);items.appendChild(row);total+=e.ocr.so_tien;
-  });
-  var tot=$el("div","batch-total");
-  var tl=$el("span");tl.textContent="Tổng cộng";
-  var tv=$el("span");tv.textContent="-"+fmtAmt(total)+" ₫";tv.style.color="var(--red)";
-  tot.appendChild(tl);tot.appendChild(tv);items.appendChild(tot);
-
-  var acts=$el("div","batch-actions");
-  var sv=$el("button","card-btn save");sv.textContent="✓ Lưu cả "+n;sv.style.flex="1";
-  sv.addEventListener("click",function(){
-    sv.disabled=true;sv.textContent="Đang lưu...";
-    var rows=entries.map(function(e){return{
-      so_tien:e.ocr.so_tien,loai:e.loai||"Chi",ngay_tt:e.ocr.ngay,
-      nganh_nghe:state.nganh_nghe,danh_muc:state.danh_muc,pttt:state.pttt,
-      noi_dung:e.ocr.noi_dung||e.ocr.nguoi_nhan,nguoi_nhan:e.ocr.nguoi_nhan
-    }});
-    saveEntries(rows,sv);
-  });
-  var sk=$el("button","card-btn skip");sk.textContent="Hủy";
-  sk.addEventListener("click",function(){items.style.opacity=".3";bhdr.style.opacity=".3";botMsg("Đã hủy.")});
-  acts.appendChild(sv);acts.appendChild(sk);items.appendChild(acts);
-  M.appendChild(items);scr();
-}
-
-// =====================
 // SELECT BUTTON + DROPDOWN
 // =====================
 function addRow(parent,label,value){
@@ -433,13 +387,7 @@ function addSelectRow(parent,label,field,state,options){
   parent.appendChild(row);
 }
 
-function addBatchSelect(parent,label,field,state,options){
-  var sec=$el("div","batch-section");
-  var lbl=$el("div","batch-section-label");lbl.textContent=label;
-  sec.appendChild(lbl);
-  sec.appendChild(makeSelectBtn(label,field,state,options));
-  parent.appendChild(sec);
-}
+
 
 // =====================
 // SAVE
