@@ -31,7 +31,7 @@ app = FastAPI(title="Xuka - Kế Toán Bot")
 # --- Helpers ---
 
 def _format_amount(amount: int) -> str:
-    return f"{amount:,}".replace(",", ".")
+    return f"{amount:,}"
 
 
 def _parse_amount(text: str) -> int | None:
