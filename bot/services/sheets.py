@@ -210,10 +210,9 @@ def append_entry(
 ) -> None:
     """Thêm một dòng vào sheet Thu Chi."""
     ws = _get_worksheet()
-    # Lưu nguoi_nhan vào ghi_chu để future lookups
     final_gc = nguoi_nhan if nguoi_nhan else ghi_chu
     ws.append_row(
-        [thang, ngay_tt, nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc],
+        [thang, "'" + ngay_tt, nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc],
         value_input_option="USER_ENTERED",
     )
     global _cache_time
@@ -227,7 +226,7 @@ def append_entries(entries: list[dict[str, Any]]) -> None:
     for e in entries:
         final_gc = e.get("nguoi_nhan", "") or e.get("ghi_chu", "")
         rows.append([
-            e.get("thang", ""), e.get("ngay_tt", ""),
+            e.get("thang", ""), "'" + e.get("ngay_tt", ""),
             e.get("nganh_nghe", ""), e.get("danh_muc", ""),
             e.get("noi_dung", ""), e.get("thu", ""), e.get("chi", ""),
             e.get("pttt", ""), final_gc,
