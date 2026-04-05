@@ -34,14 +34,9 @@ def _resolve_credentials_file() -> str:
                 decoded = base64.b64decode(raw_json)
                 parsed = json.loads(decoded)
 
-            # Ensure private_key has real newlines
-            pk = parsed.get("private_key", "")
-            if pk and "\\n" in pk:
-                parsed["private_key"] = pk.replace("\\n", "\n")
-
-            # Write to temp file
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w")
-            json.dump(parsed, tmp)
+            # Write to temp file - use raw bytes to preserve exact format
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="wb")
+            tmp.write(json.dumps(parsed).encode("utf-8"))
             tmp.close()
             logger.info("Credentials loaded from env var, email: %s", parsed.get("client_email", "?"))
             return tmp.name
