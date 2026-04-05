@@ -218,17 +218,21 @@ onSend=function(){
     pendingFiles=[];pendingDataUrls=[];renderPreviews();
     // Send
     if(busy)return;busy=true;sb.disabled=true;showTyping();
-    fetch("/api/process",{method:"POST",body:fd})
-      .then(function(r){return r.json()})
+    // Use AbortController for 120s timeout (multiple images need time)
+    var ctrl=new AbortController();
+    var timer=setTimeout(function(){ctrl.abort()},120000);
+    fetch("/api/process",{method:"POST",body:fd,signal:ctrl.signal})
+      .then(function(r){clearTimeout(timer);return r.json()})
       .then(function(data){
         hideTyping();
         if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
         if(data.options&&data.options.nganh_nghe)opts=data.options;
+        if(data.entries.length===0){botMsg("Không đọc được ảnh nào.");busy=false;sb.disabled=false;return}
         if(data.entries.length===1)renderCard(data.entries[0]);
         else renderBatch(data);
         busy=false;sb.disabled=false;
       })
-      .catch(function(err){hideTyping();botMsg("Lỗi: "+(err.message||err));busy=false;sb.disabled=false});
+      .catch(function(err){clearTimeout(timer);hideTyping();botMsg("Lỗi: "+(err.name==="AbortError"?"Quá thời gian xử lý. Thử gửi ít ảnh hơn.":err.message||err));busy=false;sb.disabled=false});
   }else if(note){
     usrMsg(note);
     manualEntry(note);

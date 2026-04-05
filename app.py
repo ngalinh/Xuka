@@ -102,14 +102,15 @@ async def process_images(
         content = await f.read()
         file_data.append((content, f.content_type or "image/png"))
 
-    # OCR concurrently
-    loop = asyncio.get_event_loop()
-    ocr_tasks = [loop.run_in_executor(None, extract_transfer, data, mt) for data, mt in file_data]
-    ocr_results: list[OCRResult] = await asyncio.gather(*ocr_tasks)
-
-    # Map each entry
+    # OCR each image (sequential to avoid API rate limits on free tier)
     entries = []
-    for i, ocr in enumerate(ocr_results):
+    for i, (data, mt) in enumerate(file_data):
+        try:
+            ocr = extract_transfer(data, mt)
+        except Exception as e:
+            logger.error("OCR failed for image %d: %s", i, e)
+            continue
+
         mapping = map_entry(
             nguoi_nhan=ocr.nguoi_nhan,
             noi_dung=ocr.noi_dung,
@@ -117,6 +118,8 @@ async def process_images(
             user_note=note,
         )
         loai = "Thu" if ocr.loai == "thu" else "Chi"
+        # Use note as noi_dung if provided
+        noi_dung = note if note else (ocr.noi_dung or ocr.nguoi_nhan)
         entries.append({
             "id": f"entry_{i}",
             "ocr": {
@@ -124,7 +127,7 @@ async def process_images(
                 "nguoi_nhan": ocr.nguoi_nhan,
                 "ngan_hang": ocr.ngan_hang,
                 "ngay": ocr.ngay or datetime.now(VN_TZ).strftime("%d/%m/%Y"),
-                "noi_dung": ocr.noi_dung,
+                "noi_dung": noi_dung,
             },
             "mapping": {
                 "nganh_nghe": mapping.nganh_nghe,
