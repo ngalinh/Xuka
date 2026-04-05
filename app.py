@@ -58,8 +58,21 @@ async def debug_info():
     """Debug endpoint to check sheet connection."""
     import traceback
     try:
+        # Check what the env var actually contains
+        raw = os.environ.get("GOOGLE_CREDENTIALS_JSON", "")[:200]
+        cred_file = os.environ.get("GOOGLE_CREDENTIALS_FILE", "")
+
         from bot.services.sheets import _get_worksheet, _load_cache, _cache_time
         from bot.services.sheets import _unique_nganh_nghe, _unique_danh_muc_chi, _unique_pttt
+        from bot.config import GOOGLE_CREDENTIALS_FILE as resolved_path
+
+        # Read the resolved file to check private_key format
+        import json as jj
+        with open(resolved_path) as ff:
+            cred_data = jj.load(ff)
+        pk = cred_data.get("private_key", "")
+        pk_info = f"starts='{pk[:40]}', has_real_newlines={'chr(10)' in pk}, len={len(pk)}"
+
         ws = _get_worksheet()
         row_count = ws.row_count
         row1 = ws.row_values(1)
@@ -74,7 +87,13 @@ async def debug_info():
             "cache_pttt": len(_unique_pttt),
         }
     except Exception as e:
-        return {"status": "error", "error": str(e), "traceback": traceback.format_exc()}
+        return {
+            "status": "error", "error": str(e),
+            "env_raw_start": raw,
+            "resolved_path": resolved_path if 'resolved_path' in dir() else "?",
+            "pk_info": pk_info if 'pk_info' in dir() else "?",
+            "traceback": traceback.format_exc(),
+        }
 
 @app.get("/api/options")
 async def get_options():
