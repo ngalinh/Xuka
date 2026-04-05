@@ -12,6 +12,19 @@ from bot.config import GOOGLE_CREDENTIALS_FILE, SPREADSHEET_URL, SHEET_NAME
 
 logger = logging.getLogger(__name__)
 
+
+def _normalize(name: str) -> str:
+    """Normalize tên: lowercase, bỏ dấu, trim."""
+    if not name:
+        return ""
+    try:
+        from unidecode import unidecode
+        n = unidecode(name).lower().strip()
+    except ImportError:
+        import unicodedata
+        n = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii").lower().strip()
+    return " ".join(n.split())
+
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
@@ -75,8 +88,7 @@ def _load_cache() -> None:
         logger.error("Không thể đọc dữ liệu sheet: %s", e)
         return
 
-    # Lazy import to avoid circular
-    from bot.services.memory import normalize_name
+    normalize_name = _normalize
 
     mapping: dict[str, tuple[str, str, str]] = {}
     recipient: dict[str, tuple[str, str, str]] = {}
@@ -86,40 +98,44 @@ def _load_cache() -> None:
     pttt_set: set[str] = set()
 
     for row in all_vals[1:]:
-        if len(row) < 8:
+        try:
+            if len(row) < 8:
+                continue
+            nn = row[2].strip()
+            dm = row[3].strip()
+            nd = row[4].strip()
+            pt = row[7].strip()
+            gc = row[8].strip() if len(row) > 8 else ""
+
+            if nn:
+                nganh_set.add(nn)
+            if dm:
+                if dm.startswith("THU"):
+                    dm_thu_set.add(dm)
+                else:
+                    dm_chi_set.add(dm)
+            if pt:
+                pttt_set.add(pt)
+            if nd and (nn or dm or pt):
+                mapping[nd] = (nn, dm, pt)
+
+            # Build recipient cache
+            names_to_index = []
+            if gc and not gc.startswith("("):
+                names_to_index.append(gc)
+            extracted = _extract_recipient_from_noi_dung(nd)
+            if extracted:
+                names_to_index.append(extracted)
+            if nd and len(nd.split()) <= 5:
+                names_to_index.append(nd)
+
+            for name in names_to_index:
+                key = normalize_name(name)
+                if key and len(key) > 2 and (nn or dm or pt):
+                    recipient[key] = (nn, dm, pt)
+        except Exception as row_err:
+            logger.warning("Skip row error: %s", row_err)
             continue
-        nn = row[2].strip()
-        dm = row[3].strip()
-        nd = row[4].strip()
-        pt = row[7].strip()
-        gc = row[8].strip() if len(row) > 8 else ""
-
-        if nn:
-            nganh_set.add(nn)
-        if dm:
-            (dm_thu_set if dm.startswith("THU") else dm_chi_set).add(dm)
-        if pt:
-            pttt_set.add(pt)
-        if nd and (nn or dm or pt):
-            mapping[nd] = (nn, dm, pt)
-
-        # Build recipient cache from noi_dung and ghi_chu
-        names_to_index: list[str] = []
-        # Ghi chú chứa tên người nhận (from new entries)
-        if gc and not gc.startswith("("):
-            names_to_index.append(gc)
-        # Extract from noi_dung patterns
-        extracted = _extract_recipient_from_noi_dung(nd)
-        if extracted:
-            names_to_index.append(extracted)
-        # Nội dung itself could be a name
-        if nd and len(nd.split()) <= 5:
-            names_to_index.append(nd)
-
-        for name in names_to_index:
-            key = normalize_name(name)
-            if key and len(key) > 2 and (nn or dm or pt):
-                recipient[key] = (nn, dm, pt)  # Last occurrence wins (most recent)
 
     _mapping_cache = mapping
     _recipient_cache = recipient
@@ -128,7 +144,11 @@ def _load_cache() -> None:
     _unique_danh_muc_chi = sorted(dm_chi_set)
     _unique_pttt = sorted(pttt_set)
     _cache_time = time.time()
-    logger.info("Đã tải %d text mappings, %d recipient mappings", len(mapping), len(recipient))
+    logger.info(
+        "Cache loaded: %d rows, %d text mappings, %d recipients, %d nn, %d dm_chi, %d pttt",
+        len(all_vals) - 1, len(mapping), len(recipient),
+        len(nganh_set), len(dm_chi_set), len(pttt_set),
+    )
 
 
 def get_unique_nganh_nghe() -> list[str]:
@@ -177,8 +197,7 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
 def find_by_recipient(recipient_name: str) -> tuple[str, str, str] | None:
     """Tìm mapping dựa trên tên người nhận (normalized)."""
     _load_cache()
-    from bot.services.memory import normalize_name
-    key = normalize_name(recipient_name)
+    key = _normalize(recipient_name)
     if not key:
         return None
     return _recipient_cache.get(key)
