@@ -207,37 +207,48 @@ onSend=function(){
   ti.value="";
 
   if(pendingFiles.length>0){
-    // Show all images in chat as single user message
+    // Show images + note in chat
     for(var i=0;i<pendingDataUrls.length;i++)usrImg(pendingDataUrls[i]);
-    // Show note as ONE message (if any)
     if(note)usrMsg(note);
-    // Build FormData BEFORE clearing
-    var fd=new FormData();
-    for(var j=0;j<pendingFiles.length;j++)fd.append("files",pendingFiles[j]);
-    fd.append("note",note||"");
+    // Save files before clearing
+    var filesToSend=pendingFiles.slice();
     pendingFiles=[];pendingDataUrls=[];renderPreviews();
-    // Send
-    if(busy)return;busy=true;sb.disabled=true;showTyping();
-    // Use AbortController for 120s timeout (multiple images need time)
-    var ctrl=new AbortController();
-    var timer=setTimeout(function(){ctrl.abort()},120000);
-    fetch("/api/process",{method:"POST",body:fd,signal:ctrl.signal})
-      .then(function(r){clearTimeout(timer);return r.json()})
-      .then(function(data){
-        hideTyping();
-        if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
-        if(data.options&&data.options.nganh_nghe)opts=data.options;
-        if(data.entries.length===0){botMsg("Không đọc được ảnh nào.");busy=false;sb.disabled=false;return}
-        // Always render each entry as separate card
-        data.entries.forEach(function(entry){renderCard(entry)});
-        busy=false;sb.disabled=false;
-      })
-      .catch(function(err){clearTimeout(timer);hideTyping();botMsg("Lỗi: "+(err.name==="AbortError"?"Quá thời gian xử lý. Thử gửi ít ảnh hơn.":err.message||err));busy=false;sb.disabled=false});
+    if(busy)return;busy=true;sb.disabled=true;
+    // Send each image as separate request (avoids Render 30s timeout)
+    processOneByOne(filesToSend,note,0);
   }else if(note){
     usrMsg(note);
     manualEntry(note);
   }
 };
+
+function processOneByOne(files,note,idx){
+  if(idx>=files.length){busy=false;sb.disabled=false;return}
+  var total=files.length;
+  if(total>1)botMsg("Đang xử lý ảnh "+(idx+1)+"/"+total+"...");
+  showTyping();
+  var fd=new FormData();
+  fd.append("files",files[idx]);
+  fd.append("note",note||"");
+  fetch("/api/process",{method:"POST",body:fd})
+    .then(function(r){return r.json()})
+    .then(function(data){
+      hideTyping();
+      if(data.options&&data.options.nganh_nghe)opts=data.options;
+      if(data.entries&&data.entries.length>0){
+        data.entries.forEach(function(entry){renderCard(entry)});
+      }else{
+        botMsg("Không đọc được ảnh "+(idx+1));
+      }
+      // Process next image
+      processOneByOne(files,note,idx+1);
+    })
+    .catch(function(err){
+      hideTyping();
+      botMsg("Lỗi ảnh "+(idx+1)+": "+(err.message||err));
+      processOneByOne(files,note,idx+1);
+    });
+}
 
 function manualEntry(note){
   if(busy)return;busy=true;sb.disabled=true;showTyping();
