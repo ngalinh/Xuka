@@ -20,18 +20,17 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 .msg.bot{align-self:flex-start;background:var(--g1);color:var(--text);padding:10px 14px;border-radius:4px 16px 16px 16px}
 .msg.usr{align-self:flex-end;background:var(--pri);color:var(--white);padding:10px 14px;border-radius:16px 4px 16px 16px}
 .msg img{max-width:160px;max-height:200px;border-radius:8px;display:block}
-.pending-label{align-self:flex-end;font-size:11px;color:var(--g3);margin-top:-4px}
 
 /* Card */
-.card{align-self:flex-start;width:95%;background:#FAFAFE;border:1px solid var(--g2);border-radius:12px;overflow:visible;animation:fi .25s ease}
+.card{align-self:flex-start;width:95%;background:#FAFAFE;border:1px solid var(--g2);border-radius:12px;animation:fi .25s ease}
 .card-hdr{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--g1);background:var(--white);border-radius:12px 12px 0 0}
 .card-date{font-size:12px;font-weight:600;color:var(--text)}
 .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;color:var(--white)}
 .badge.hi{background:var(--green)}.badge.lo{background:var(--yellow);color:var(--text)}.badge.no{background:var(--g3)}
 .card-body{padding:10px 14px;display:flex;flex-direction:column;gap:6px}
-.card-row{display:flex;align-items:flex-start;gap:8px;font-size:12px;min-height:28px}
-.card-label{width:78px;flex-shrink:0;color:var(--g3);font-weight:600;padding-top:4px}
-.card-val{flex:1;color:var(--text);font-weight:500;padding-top:4px}
+.card-row{display:flex;align-items:center;gap:8px;font-size:12px;min-height:28px}
+.card-label{width:78px;flex-shrink:0;color:var(--g3);font-weight:600}
+.card-val{flex:1;color:var(--text);font-weight:500}
 .card-val.amount{font-size:14px;font-weight:700;color:var(--red)}
 .card-val.amount.thu{color:var(--green)}
 .card-actions{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--g1);background:var(--white);border-radius:0 0 12px 12px}
@@ -39,13 +38,25 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
 .card-btn:hover{filter:brightness(.95)}.card-btn:disabled{opacity:.6;cursor:not-allowed}
 .card-btn.save{background:var(--pri);color:var(--white)}.card-btn.skip{background:var(--g1);color:var(--g3)}
 
-/* Chip as expandable list */
-.chip-wrap{flex:1;display:flex;flex-wrap:wrap;gap:4px}
-.chip{padding:4px 10px;border-radius:14px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid var(--g2);color:var(--g3);background:var(--white);transition:all .15s}
-.chip:hover{border-color:var(--pri);color:var(--pri)}
-.chip.active{background:var(--pri);color:var(--white);border-color:var(--pri)}
-.chip.empty-val{border-color:var(--yellow);color:var(--yellow);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+/* Dropdown Select Button */
+.sel-btn{display:inline-flex;align-items:center;gap:4px;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;color:var(--white);background:var(--pri);font-family:'Inter',sans-serif;position:relative}
+.sel-btn.empty{background:var(--g2);color:var(--g3)}
+.sel-btn .arrow{font-size:9px;margin-left:2px}
+/* Dropdown panel */
+.sel-panel{display:none;position:fixed;background:var(--white);border:1px solid var(--g2);border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.18);max-height:260px;overflow-y:auto;z-index:9999;min-width:200px;max-width:280px}
+.sel-panel.open{display:block}
+.sel-panel-title{padding:8px 14px;font-size:11px;font-weight:700;color:var(--g3);text-transform:uppercase;border-bottom:1px solid var(--g1);position:sticky;top:0;background:var(--white)}
+.sel-item{padding:9px 14px;font-size:12px;cursor:pointer;color:var(--text);border-bottom:1px solid var(--g1)}
+.sel-item:last-child{border-bottom:none}
+.sel-item:hover{background:#F0EDFF;color:var(--pri)}
+.sel-item.active{background:var(--pri);color:var(--white)}
+
+/* Image preview in input area */
+.preview-bar{display:none;padding:8px 12px;border-top:1px solid var(--g1);background:var(--white);flex-shrink:0;overflow-x:auto;white-space:nowrap}
+.preview-bar.show{display:flex;gap:8px;align-items:center}
+.preview-thumb{position:relative;display:inline-block;flex-shrink:0}
+.preview-thumb img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid var(--g2)}
+.preview-thumb .x{position:absolute;top:-4px;right:-4px;width:18px;height:18px;border-radius:50%;background:var(--red);color:var(--white);border:none;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
 
 /* Batch */
 .batch-hdr{align-self:flex-start;width:95%;padding:10px 14px;background:#FAFAFE;border:1px solid var(--g2);border-radius:12px 12px 0 0;border-bottom:none;animation:fi .25s ease}
@@ -83,6 +94,7 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
     <div class="hdr-info"><div class="hdr-name">Kế Toán Bot</div><div class="hdr-st">đang hoạt động</div></div>
   </div>
   <div class="msgs" id="M"></div>
+  <div class="preview-bar" id="pbar"></div>
   <div class="input-bar">
     <div class="input-wrap">
       <button class="ib" onclick="document.getElementById('fi').click()"><svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg></button>
@@ -91,44 +103,68 @@ body{font-family:'Inter',sans-serif;background:var(--bg);height:100vh;overflow:h
     </div>
     <button class="sb" id="sb" onclick="onSend()"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
   </div>
-  <div class="hint">Paste hình → thêm ghi chú nếu cần → Enter để gửi</div>
+  <div class="hint">Paste hình → thêm ghi chú → Enter gửi</div>
 </div>
+<!-- Dropdown panel rendered here (fixed position) -->
+<div class="sel-panel" id="selPanel"></div>
 
 <script>
-var M=document.getElementById("M"),ti=document.getElementById("ti"),sb=document.getElementById("sb");
-var opts={},pendingFiles=[],busy=false;
+var M=document.getElementById("M"),ti=document.getElementById("ti"),sb=document.getElementById("sb"),pbar=document.getElementById("pbar"),selPanel=document.getElementById("selPanel");
+var opts={},pendingFiles=[],pendingDataUrls=[],busy=false;
 
 fetch("/api/options").then(function(r){return r.json()}).then(function(d){opts=d}).catch(function(){});
 botMsg("Xin chào! Gửi hình chuyển khoản để ghi nhận.\nPaste hình → thêm ghi chú → Enter.");
 
-function el(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;return e}
-function botMsg(t){var d=el("div","msg bot");d.textContent=t;M.appendChild(d);scr()}
-function usrMsg(t){var d=el("div","msg usr");d.textContent=t;M.appendChild(d);scr()}
+function $el(tag,cls){var e=document.createElement(tag);if(cls)e.className=cls;return e}
+function botMsg(t){var d=$el("div","msg bot");d.textContent=t;M.appendChild(d);scr()}
+function usrMsg(t){var d=$el("div","msg usr");d.textContent=t;M.appendChild(d);scr()}
+function usrImg(src){var d=$el("div","msg usr");var img=document.createElement("img");img.src=src;d.appendChild(img);M.appendChild(d);scr()}
 function scr(){requestAnimationFrame(function(){M.scrollTop=M.scrollHeight})}
-function showTyping(){var d=el("div","typing");d.id="typ";d.innerHTML="<span></span><span></span><span></span>";M.appendChild(d);scr()}
+function showTyping(){var d=$el("div","typing");d.id="typ";d.innerHTML="<span></span><span></span><span></span>";M.appendChild(d);scr()}
 function hideTyping(){var e=document.getElementById("typ");if(e)e.remove()}
 
-// --- Paste: chỉ queue, KHÔNG auto-send ---
+// =====================
+// IMAGE PREVIEW IN INPUT BAR (like Messenger)
+// =====================
+function addPendingImage(file){
+  pendingFiles.push(file);
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    var dataUrl=ev.target.result;
+    pendingDataUrls.push(dataUrl);
+    renderPreviews();
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderPreviews(){
+  pbar.innerHTML="";
+  if(pendingFiles.length===0){pbar.className="preview-bar";return}
+  pbar.className="preview-bar show";
+  for(var i=0;i<pendingDataUrls.length;i++){
+    (function(idx){
+      var thumb=$el("div","preview-thumb");
+      var img=document.createElement("img");img.src=pendingDataUrls[idx];
+      var xBtn=$el("button","x");xBtn.textContent="×";
+      xBtn.addEventListener("click",function(){
+        pendingFiles.splice(idx,1);
+        pendingDataUrls.splice(idx,1);
+        renderPreviews();
+      });
+      thumb.appendChild(img);thumb.appendChild(xBtn);
+      pbar.appendChild(thumb);
+    })(i);
+  }
+}
+
+// Paste → preview in input bar
 document.addEventListener("paste",function(e){
   var items=e.clipboardData&&e.clipboardData.items;if(!items)return;
   for(var i=0;i<items.length;i++){
     if(items[i].type.indexOf("image")!==-1){
       e.preventDefault();
       var f=items[i].getAsFile();
-      if(f){
-        pendingFiles.push(f);
-        // Show preview
-        var reader=new FileReader();
-        reader.onload=function(ev){
-          var d=el("div","msg usr");var img=document.createElement("img");
-          img.src=ev.target.result;d.appendChild(img);M.appendChild(d);scr();
-        };
-        reader.readAsDataURL(f);
-        // Show hint
-        var hint=el("div","pending-label");
-        hint.textContent=pendingFiles.length+" hình chờ gửi — Enter để gửi";
-        M.appendChild(hint);scr();
-      }
+      if(f)addPendingImage(f);
       return;
     }
   }
@@ -136,33 +172,22 @@ document.addEventListener("paste",function(e){
 
 function onFiles(e){
   var fl=e.target.files;
-  for(var i=0;i<fl.length;i++){
-    pendingFiles.push(fl[i]);
-    (function(file){
-      var reader=new FileReader();
-      reader.onload=function(ev){
-        var d=el("div","msg usr");var img=document.createElement("img");
-        img.src=ev.target.result;d.appendChild(img);M.appendChild(d);scr();
-      };
-      reader.readAsDataURL(file);
-    })(fl[i]);
-  }
+  for(var i=0;i<fl.length;i++)addPendingImage(fl[i]);
   e.target.value="";
-  if(pendingFiles.length>0){
-    var hint=el("div","pending-label");
-    hint.textContent=pendingFiles.length+" hình chờ gửi — Enter để gửi";
-    M.appendChild(hint);scr();
-  }
 }
 
-// --- Send: Enter hoặc click ---
+// =====================
+// SEND
+// =====================
 function onSend(){
   if(window._waitingAmount){handleAmountInput();return}
   var note=ti.value.trim();
   if(pendingFiles.length>0){
+    // Show images in chat
+    for(var i=0;i<pendingDataUrls.length;i++)usrImg(pendingDataUrls[i]);
     if(note)usrMsg(note);
     processFiles(note);
-    ti.value="";
+    ti.value="";pendingFiles=[];pendingDataUrls=[];renderPreviews();
   }else if(note){
     usrMsg(note);ti.value="";
     manualEntry(note);
@@ -170,17 +195,13 @@ function onSend(){
 }
 ti.addEventListener("keydown",function(e){if(e.key==="Enter")onSend()});
 
-// --- Process images ---
 function processFiles(note){
   if(busy)return;busy=true;sb.disabled=true;
-  // Remove pending labels
-  document.querySelectorAll(".pending-label").forEach(function(x){x.remove()});
   showTyping();
   var fd=new FormData();
-  pendingFiles.forEach(function(f){fd.append("files",f)});
-  fd.append("note",note||"");
-  pendingFiles=[];
-
+  // Re-read from the files we saved
+  var filesToSend=pendingFiles.length>0?pendingFiles:[];
+  // Files already cleared, use closure
   fetch("/api/process",{method:"POST",body:fd})
     .then(function(r){return r.json()})
     .then(function(data){
@@ -193,6 +214,37 @@ function processFiles(note){
     })
     .catch(function(err){hideTyping();botMsg("Lỗi: "+err.message);busy=false;sb.disabled=false});
 }
+
+// FIX: need to build FormData BEFORE clearing pendingFiles
+onSend=function(){
+  if(window._waitingAmount){handleAmountInput();return}
+  var note=ti.value.trim();
+  if(pendingFiles.length>0){
+    for(var i=0;i<pendingDataUrls.length;i++)usrImg(pendingDataUrls[i]);
+    if(note)usrMsg(note);
+    // Build FormData with actual files
+    var fd=new FormData();
+    for(var j=0;j<pendingFiles.length;j++)fd.append("files",pendingFiles[j]);
+    fd.append("note",note||"");
+    ti.value="";pendingFiles=[];pendingDataUrls=[];renderPreviews();
+    // Send
+    if(busy)return;busy=true;sb.disabled=true;showTyping();
+    fetch("/api/process",{method:"POST",body:fd})
+      .then(function(r){return r.json()})
+      .then(function(data){
+        hideTyping();
+        if(data.error){botMsg(data.error);busy=false;sb.disabled=false;return}
+        if(data.options)opts=data.options;
+        if(data.entries.length===1)renderCard(data.entries[0]);
+        else renderBatch(data);
+        busy=false;sb.disabled=false;
+      })
+      .catch(function(err){hideTyping();botMsg("Lỗi: "+err.message);busy=false;sb.disabled=false});
+  }else if(note){
+    usrMsg(note);ti.value="";
+    manualEntry(note);
+  }
+};
 
 function manualEntry(note){
   if(busy)return;busy=true;sb.disabled=true;showTyping();
@@ -221,36 +273,69 @@ function handleAmountInput(){
   renderCard(entry);
 }
 
-// --- Single Card ---
+// =====================
+// DROPDOWN SELECT (fixed position, renders on body)
+// =====================
+function openSelect(btnEl,title,options,currentVal,onSelect){
+  // Close any open
+  selPanel.className="sel-panel";selPanel.innerHTML="";
+  // Title
+  var ttl=$el("div","sel-panel-title");ttl.textContent=title;
+  selPanel.appendChild(ttl);
+  // Items
+  options.forEach(function(opt){
+    var item=$el("div","sel-item"+(opt===currentVal?" active":""));
+    item.textContent=opt;
+    item.addEventListener("click",function(e){
+      e.stopPropagation();
+      selPanel.className="sel-panel";
+      onSelect(opt);
+    });
+    selPanel.appendChild(item);
+  });
+  // Position below button
+  var rect=btnEl.getBoundingClientRect();
+  selPanel.style.top=rect.bottom+4+"px";
+  selPanel.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-290))+"px";
+  selPanel.className="sel-panel open";
+}
+
+// Close dropdown on outside click
+document.addEventListener("click",function(e){
+  if(!selPanel.contains(e.target)&&!e.target.classList.contains("sel-btn")){
+    selPanel.className="sel-panel";
+  }
+});
+
+// =====================
+// SINGLE CARD
+// =====================
 function renderCard(entry){
   var ocr=entry.ocr,map=entry.mapping,loai=entry.loai;
   var state={nganh_nghe:map.nganh_nghe,danh_muc:map.danh_muc,pttt:map.pttt};
-  var card=el("div","card");
+  var card=$el("div","card");
 
-  // Header
-  var hdr=el("div","card-hdr");
-  var dt=el("span","card-date");dt.textContent="Giao dịch "+ocr.ngay;
-  var bg=el("span","badge "+(map.confidence>=80?"hi":map.confidence>=50?"lo":"no"));
+  var hdr=$el("div","card-hdr");
+  var dt=$el("span","card-date");dt.textContent="Giao dịch "+ocr.ngay;
+  var bg=$el("span","badge "+(map.confidence>=80?"hi":map.confidence>=50?"lo":"no"));
   bg.textContent=map.confidence+"%"+(map.confidence>=80?" ✓":" ?");
   hdr.appendChild(dt);hdr.appendChild(bg);card.appendChild(hdr);
 
-  var body=el("div","card-body");
+  var body=$el("div","card-body");
   addRow(body,"Người nhận",ocr.nguoi_nhan||"—");
   addRow(body,"Ngân hàng",ocr.ngan_hang||"—");
   addRow(body,"Nội dung",ocr.noi_dung||"—");
   var ar=addRow(body,loai==="Thu"?"Thu":"Chi",fmtAmt(ocr.so_tien)+" ₫");
   ar.querySelector(".card-val").className="card-val amount"+(loai==="Thu"?" thu":"");
 
-  // Chips as inline selectable list (NOT dropdown)
-  addChips(body,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
+  addSelectRow(body,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
   var dmO=loai==="Thu"?(opts.danh_muc_thu||[]):(opts.danh_muc_chi||[]);
-  addChips(body,"Danh mục","danh_muc",state,dmO);
-  addChips(body,"PTTT","pttt",state,opts.pttt||[]);
+  addSelectRow(body,"Danh mục","danh_muc",state,dmO);
+  addSelectRow(body,"PTTT","pttt",state,opts.pttt||[]);
   card.appendChild(body);
 
-  // Actions
-  var acts=el("div","card-actions");
-  var sv=el("button","card-btn save");sv.textContent="✓ Lưu vào Sheets";
+  var acts=$el("div","card-actions");
+  var sv=$el("button","card-btn save");sv.textContent="✓ Lưu vào Sheets";
   sv.addEventListener("click",function(){
     sv.disabled=true;sv.textContent="Đang lưu...";
     saveEntries([{
@@ -259,43 +344,43 @@ function renderCard(entry){
       noi_dung:ocr.noi_dung||ocr.nguoi_nhan,nguoi_nhan:ocr.nguoi_nhan
     }],sv);
   });
-  var sk=el("button","card-btn skip");sk.textContent="Bỏ qua";
+  var sk=$el("button","card-btn skip");sk.textContent="Bỏ qua";
   sk.addEventListener("click",function(){card.style.opacity=".3";botMsg("Đã bỏ qua.")});
   acts.appendChild(sv);acts.appendChild(sk);card.appendChild(acts);
   M.appendChild(card);scr();
 }
 
-// --- Batch Card ---
+// =====================
+// BATCH CARD
+// =====================
 function renderBatch(data){
   var entries=data.entries,n=entries.length;
   var shared=data.shared_mapping||{};
   var state={nganh_nghe:shared.nganh_nghe||"",danh_muc:shared.danh_muc||"",pttt:shared.pttt||""};
 
-  var bhdr=el("div","batch-hdr");
-  var h4=el("h4");h4.textContent=(data.batch_consistent?"Áp dụng chung":"Chọn danh mục")+" cho "+n+" giao dịch";
+  var bhdr=$el("div","batch-hdr");
+  var h4=$el("h4");h4.textContent=(data.batch_consistent?"Áp dụng chung":"Chọn danh mục")+" cho "+n+" giao dịch";
   bhdr.appendChild(h4);
-
-  addBatchChips(bhdr,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
-  addBatchChips(bhdr,"Danh mục","danh_muc",state,opts.danh_muc_chi||[]);
-  addBatchChips(bhdr,"PTTT","pttt",state,opts.pttt||[]);
+  addBatchSelect(bhdr,"Ngành Nghề","nganh_nghe",state,opts.nganh_nghe||[]);
+  addBatchSelect(bhdr,"Danh mục","danh_muc",state,opts.danh_muc_chi||[]);
+  addBatchSelect(bhdr,"PTTT","pttt",state,opts.pttt||[]);
   M.appendChild(bhdr);
 
-  var items=el("div","batch-items");
+  var items=$el("div","batch-items");
   var total=0;
   entries.forEach(function(e){
-    var row=el("div","batch-item");
-    var nm=el("div","batch-item-name");nm.textContent=e.ocr.nguoi_nhan||e.ocr.noi_dung||"—";
-    var am=el("div","batch-item-amt");am.textContent="-"+fmtAmt(e.ocr.so_tien)+" ₫";
-    row.appendChild(nm);row.appendChild(am);items.appendChild(row);
-    total+=e.ocr.so_tien;
+    var row=$el("div","batch-item");
+    var nm=$el("div","batch-item-name");nm.textContent=e.ocr.nguoi_nhan||e.ocr.noi_dung||"—";
+    var am=$el("div","batch-item-amt");am.textContent="-"+fmtAmt(e.ocr.so_tien)+" ₫";
+    row.appendChild(nm);row.appendChild(am);items.appendChild(row);total+=e.ocr.so_tien;
   });
-  var tot=el("div","batch-total");
-  var tl=el("span");tl.textContent="Tổng cộng";
-  var tv=el("span");tv.textContent="-"+fmtAmt(total)+" ₫";tv.style.color="var(--red)";
+  var tot=$el("div","batch-total");
+  var tl=$el("span");tl.textContent="Tổng cộng";
+  var tv=$el("span");tv.textContent="-"+fmtAmt(total)+" ₫";tv.style.color="var(--red)";
   tot.appendChild(tl);tot.appendChild(tv);items.appendChild(tot);
 
-  var acts=el("div","batch-actions");
-  var sv=el("button","card-btn save");sv.textContent="✓ Lưu cả "+n;sv.style.flex="1";
+  var acts=$el("div","batch-actions");
+  var sv=$el("button","card-btn save");sv.textContent="✓ Lưu cả "+n;sv.style.flex="1";
   sv.addEventListener("click",function(){
     sv.disabled=true;sv.textContent="Đang lưu...";
     var rows=entries.map(function(e){return{
@@ -305,64 +390,57 @@ function renderBatch(data){
     }});
     saveEntries(rows,sv);
   });
-  var sk=el("button","card-btn skip");sk.textContent="Hủy";
+  var sk=$el("button","card-btn skip");sk.textContent="Hủy";
   sk.addEventListener("click",function(){items.style.opacity=".3";bhdr.style.opacity=".3";botMsg("Đã hủy.")});
   acts.appendChild(sv);acts.appendChild(sk);items.appendChild(acts);
   M.appendChild(items);scr();
 }
 
-// --- Chip components (inline list, NOT dropdown) ---
+// =====================
+// SELECT BUTTON + DROPDOWN
+// =====================
 function addRow(parent,label,value){
-  var row=el("div","card-row");
-  var l=el("div","card-label");l.textContent=label;
-  var v=el("div","card-val");v.textContent=value;
+  var row=$el("div","card-row");
+  var l=$el("div","card-label");l.textContent=label;
+  var v=$el("div","card-val");v.textContent=value;
   row.appendChild(l);row.appendChild(v);parent.appendChild(row);return row;
 }
 
-function addChips(parent,label,field,state,options){
-  var row=el("div","card-row");
-  var l=el("div","card-label");l.textContent=label;
+function makeSelectBtn(label,field,state,options){
+  var btn=$el("button","sel-btn"+(state[field]?"":" empty"));
+  btn.textContent=state[field]||"Chọn...";
+  var arrow=$el("span","arrow");arrow.textContent=" ▼";btn.appendChild(arrow);
+  btn.addEventListener("click",function(e){
+    e.stopPropagation();
+    openSelect(btn,label,options,state[field],function(val){
+      state[field]=val;
+      btn.textContent=val;
+      var a2=$el("span","arrow");a2.textContent=" ▼";btn.appendChild(a2);
+      btn.className="sel-btn";
+    });
+  });
+  return btn;
+}
+
+function addSelectRow(parent,label,field,state,options){
+  var row=$el("div","card-row");
+  var l=$el("div","card-label");l.textContent=label;
   row.appendChild(l);
-  var wrap=el("div","chip-wrap");
-  options.forEach(function(opt){
-    var c=el("button","chip"+(state[field]===opt?" active":""));
-    c.textContent=opt;
-    c.addEventListener("click",function(){
-      // Deselect others in this wrap
-      wrap.querySelectorAll(".chip").forEach(function(x){x.className="chip"});
-      c.className="chip active";
-      state[field]=opt;
-    });
-    wrap.appendChild(c);
-  });
-  // If no value selected, show empty indicator
-  if(!state[field]&&options.length>0){
-    var empty=el("button","chip empty-val");empty.textContent="← Chọn một mục";
-    empty.style.cursor="default";empty.disabled=true;
-    wrap.insertBefore(empty,wrap.firstChild);
-  }
-  row.appendChild(wrap);parent.appendChild(row);
+  row.appendChild(makeSelectBtn(label,field,state,options));
+  parent.appendChild(row);
 }
 
-function addBatchChips(parent,label,field,state,options){
-  var sec=el("div","batch-section");
-  var lbl=el("div","batch-section-label");lbl.textContent=label;
+function addBatchSelect(parent,label,field,state,options){
+  var sec=$el("div","batch-section");
+  var lbl=$el("div","batch-section-label");lbl.textContent=label;
   sec.appendChild(lbl);
-  var wrap=el("div","chip-wrap");
-  options.forEach(function(opt){
-    var c=el("button","chip"+(state[field]===opt?" active":""));
-    c.textContent=opt;
-    c.addEventListener("click",function(){
-      wrap.querySelectorAll(".chip").forEach(function(x){x.className="chip"});
-      c.className="chip active";
-      state[field]=opt;
-    });
-    wrap.appendChild(c);
-  });
-  sec.appendChild(wrap);parent.appendChild(sec);
+  sec.appendChild(makeSelectBtn(label,field,state,options));
+  parent.appendChild(sec);
 }
 
-// --- Save ---
+// =====================
+// SAVE
+// =====================
 function saveEntries(entries,btn){
   fetch("/api/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({entries:entries})})
   .then(function(r){return r.json()})
