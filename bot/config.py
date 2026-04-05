@@ -19,22 +19,24 @@ def _resolve_credentials_file() -> str:
         logger.info("Using credentials from file: %s", path)
         return path
 
-    # Try raw JSON first (most reliable for cloud)
+    # Check Render secret file path
+    secret_path = "/etc/secrets/credentials.json"
+    if os.path.exists(secret_path):
+        logger.info("Using credentials from Render secret file: %s", secret_path)
+        return secret_path
+
+    # Try env var (base64 or raw JSON)
     raw_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
     if raw_json:
         try:
-            # Try as raw JSON string first
             if raw_json.strip().startswith("{"):
                 parsed = json.loads(raw_json)
             else:
-                # Base64 encoded
                 padding = 4 - len(raw_json) % 4
                 if padding != 4:
                     raw_json += "=" * padding
-                decoded = base64.b64decode(raw_json)
-                parsed = json.loads(decoded)
+                parsed = json.loads(base64.b64decode(raw_json))
 
-            # Write to temp file - use raw bytes to preserve exact format
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="wb")
             tmp.write(json.dumps(parsed).encode("utf-8"))
             tmp.close()
