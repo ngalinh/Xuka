@@ -35,14 +35,26 @@ def _format_amount(amount: int) -> str:
 
 
 def _parse_amount(text: str) -> int | None:
+    import re
     cleaned = text.strip().lower()
-    mult = 1
+    # Handle "tr", "triệu", "trieu"
+    m = re.match(r'^([\d.,]+)\s*(tr|triệu|trieu)$', cleaned)
+    if m:
+        num = m.group(1).replace(",", "").replace(".", "")
+        if num.isdigit():
+            return int(num) * 1_000_000
+        return None
+    # Handle "k"
     if cleaned.endswith("k"):
-        cleaned = cleaned[:-1]
-        mult = 1000
+        cleaned = cleaned[:-1].strip()
+        cleaned = cleaned.replace(",", "").replace(".", "")
+        if cleaned.isdigit() and int(cleaned) > 0:
+            return int(cleaned) * 1000
+        return None
+    # Plain number
     cleaned = cleaned.replace(",", "").replace(".", "")
     if cleaned.isdigit() and int(cleaned) > 0:
-        return int(cleaned) * mult
+        return int(cleaned)
     return None
 
 
@@ -230,18 +242,44 @@ async def save_entries(req: SaveRequest):
 
 @app.post("/api/chat")
 async def chat_text(note: str = Form(default="")):
-    """Text-only fallback - user nhập thủ công."""
-    mapping = map_entry(nguoi_nhan="", noi_dung=note, ngan_hang="", user_note=note)
+    """Text-only entry - auto extract amount if present."""
+    import re
     now = datetime.now(VN_TZ)
+
+    # Try to extract amount from text: "Chi tool order - 5tr gia han vps"
+    amount = 0
+    noi_dung = note
+    # Patterns: "5tr", "500k", "5,000,000", "5 triệu", standalone numbers
+    amount_patterns = [
+        r'([\d.,]+)\s*(tr|triệu|trieu)',
+        r'([\d.,]+)\s*k\b',
+        r'([\d]{1,3}(?:[.,]\d{3})+)',  # 5,000,000 or 5.000.000
+        r'\b(\d{4,})\b',  # standalone 4+ digit number
+    ]
+    for pat in amount_patterns:
+        m = re.search(pat, note, re.IGNORECASE)
+        if m:
+            amt_text = m.group(0)
+            parsed = _parse_amount(amt_text)
+            if parsed and parsed > 0:
+                amount = parsed
+                # Remove amount from noi_dung
+                noi_dung = note[:m.start()].strip(" -–—") + " " + note[m.end():].strip(" -–—")
+                noi_dung = noi_dung.strip()
+                break
+
+    mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="", user_note=noi_dung)
+    loai = "Thu" if any(w in noi_dung.lower() for w in ["thu", "nhận", "hoàn"]) else "Chi"
+
     return {
         "entry": {
             "id": "manual_0",
             "ocr": {
-                "so_tien": 0,
+                "so_tien": amount,
                 "nguoi_nhan": "",
                 "ngan_hang": "",
                 "ngay": now.strftime("%d/%m/%Y"),
-                "noi_dung": note,
+                "noi_dung": noi_dung,
             },
             "mapping": {
                 "nganh_nghe": mapping.nganh_nghe,
@@ -250,7 +288,8 @@ async def chat_text(note: str = Form(default="")):
                 "confidence": mapping.confidence,
                 "source": mapping.source,
             },
-            "loai": "Chi",
+            "loai": loai,
+            "has_amount": amount > 0,
         },
         "options": {
             "nganh_nghe": get_unique_nganh_nghe(),

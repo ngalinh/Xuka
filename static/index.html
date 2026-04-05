@@ -307,24 +307,42 @@ function manualEntry(note){
   fetch("/api/chat",{method:"POST",body:fd})
     .then(function(r){return r.json()})
     .then(function(data){
-      hideTyping();if(data.options)opts=data.options;
-      botMsg("Nhập số tiền (VNĐ):");
-      window._manualEntry=data.entry;window._waitingAmount=true;
+      hideTyping();
+      if(data.options&&data.options.nganh_nghe)opts=data.options;
+      var entry=data.entry;
+      if(entry.has_amount&&entry.ocr.so_tien>0){
+        // Amount found in text → show card directly
+        renderCard(entry);
+      }else{
+        // No amount → ask user
+        botMsg("Nhập số tiền (VNĐ):");
+        window._manualEntry=entry;window._waitingAmount=true;
+      }
       busy=false;sb.disabled=false;
     })
     .catch(function(err){hideTyping();botMsg("Lỗi: "+err);busy=false;sb.disabled=false});
 }
 
+function parseAmt(t){
+  var c=t.trim().toLowerCase();
+  // "5tr", "5 triệu", "5 trieu"
+  var mr=c.match(/^([\d.,]+)\s*(tr|triệu|trieu|tri)$/i);
+  if(mr){var n=mr[1].replace(/[,.]/g,"");if(/^\d+$/.test(n))return parseInt(n)*1000000}
+  // "500k"
+  if(c.match(/k$/)){c=c.slice(0,-1).trim();c=c.replace(/[,.]/g,"");if(/^\d+$/.test(c))return parseInt(c)*1000}
+  // Plain
+  c=c.replace(/[,.]/g,"");
+  if(/^\d+$/.test(c)&&parseInt(c)>0)return parseInt(c);
+  return 0;
+}
 function handleAmountInput(){
   var t=ti.value.trim();if(!t)return;
   usrMsg(t);ti.value="";
-  var c=t.toLowerCase(),m=1;
-  if(c.endsWith("k")){c=c.slice(0,-1);m=1000}
-  c=c.replace(/[,.]/g,"");
-  if(!/^\d+$/.test(c)||parseInt(c)<=0){botMsg("Số tiền không hợp lệ, nhập lại:");return}
+  var amt=parseAmt(t);
+  if(!amt){botMsg("Số tiền không hợp lệ (VD: 500k, 5tr, 5000000):");return}
   window._waitingAmount=false;
   var entry=window._manualEntry;
-  entry.ocr.so_tien=parseInt(c)*m;
+  entry.ocr.so_tien=amt;
   renderCard(entry);
 }
 
