@@ -18,32 +18,38 @@ def _resolve_credentials_file() -> str:
     if os.path.exists(path):
         logger.info("Using credentials from file: %s", path)
         return path
-    # Fallback: base64-encoded JSON in env var (for cloud deployment)
-    encoded = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
-    if encoded:
+
+    # Try raw JSON first (most reliable for cloud)
+    raw_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    if raw_json:
         try:
-            # Handle potential padding issues
-            padding = 4 - len(encoded) % 4
-            if padding != 4:
-                encoded += "=" * padding
-            data = base64.b64decode(encoded)
-            # Validate it's valid JSON
-            parsed = json.loads(data)
-            if "private_key" not in parsed:
-                raise ValueError("Missing private_key in credentials")
-            # Fix escaped newlines in private_key
-            if "\\n" in parsed["private_key"] and "\n" not in parsed["private_key"]:
-                parsed["private_key"] = parsed["private_key"].replace("\\n", "\n")
-                data = json.dumps(parsed).encode()
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="wb")
-            tmp.write(data)
+            # Try as raw JSON string first
+            if raw_json.strip().startswith("{"):
+                parsed = json.loads(raw_json)
+            else:
+                # Base64 encoded
+                padding = 4 - len(raw_json) % 4
+                if padding != 4:
+                    raw_json += "=" * padding
+                decoded = base64.b64decode(raw_json)
+                parsed = json.loads(decoded)
+
+            # Ensure private_key has real newlines
+            pk = parsed.get("private_key", "")
+            if pk and "\\n" in pk:
+                parsed["private_key"] = pk.replace("\\n", "\n")
+
+            # Write to temp file
+            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="w")
+            json.dump(parsed, tmp)
             tmp.close()
-            logger.info("Using credentials from GOOGLE_CREDENTIALS_JSON env var (decoded %d bytes)", len(data))
+            logger.info("Credentials loaded from env var, email: %s", parsed.get("client_email", "?"))
             return tmp.name
         except Exception as e:
-            logger.error("Failed to decode GOOGLE_CREDENTIALS_JSON: %s", e)
+            logger.error("Failed to parse GOOGLE_CREDENTIALS_JSON: %s", e)
             raise
-    raise FileNotFoundError("Google credentials not found. Set GOOGLE_CREDENTIALS_FILE or GOOGLE_CREDENTIALS_JSON")
+
+    raise FileNotFoundError("No Google credentials found")
 
 
 GOOGLE_CREDENTIALS_FILE = _resolve_credentials_file()
