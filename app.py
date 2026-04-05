@@ -93,10 +93,18 @@ async def process_images(
     note: str = Form(default=""),
 ):
     """OCR + auto-map 1 hoặc nhiều ảnh chuyển khoản."""
+    import traceback as tb
+    try:
+        return await _process_images_inner(files, note)
+    except Exception as e:
+        logger.error("Process error: %s\n%s", e, tb.format_exc())
+        return {"error": str(e), "entries": [], "options": {}}
+
+
+async def _process_images_inner(files, note):
     if not files:
         return {"error": "Không có ảnh nào được gửi."}
 
-    # Read all files
     file_data = []
     for f in files:
         content = await f.read()
