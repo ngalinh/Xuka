@@ -243,16 +243,20 @@ function resizeImage(file,maxW,callback){
   reader.readAsDataURL(file);
 }
 
+// Store mapping from previous images to share with next ones
+var lastGoodMapping=null;
+
 function processOneByOne(files,note,idx){
-  if(idx>=files.length){busy=false;sb.disabled=false;return}
+  if(idx>=files.length){busy=false;sb.disabled=false;lastGoodMapping=null;return}
   var total=files.length;
   if(total>1)botMsg("Đang xử lý ảnh "+(idx+1)+"/"+total+"...");
   showTyping();
-  // Resize before upload (max 1200px width)
   resizeImage(files[idx],1200,function(resizedFile){
     var fd=new FormData();
     fd.append("files",resizedFile);
     fd.append("note",note||"");
+    // Send previous good mapping so server can use it for same recipient
+    if(lastGoodMapping)fd.append("prev_mapping",JSON.stringify(lastGoodMapping));
     fetch("/api/process",{method:"POST",body:fd})
       .then(function(r){
         if(!r.ok)throw new Error("HTTP "+r.status);
@@ -262,7 +266,28 @@ function processOneByOne(files,note,idx){
         hideTyping();
         if(data.options&&data.options.nganh_nghe)opts=data.options;
         if(data.entries&&data.entries.length>0){
-          data.entries.forEach(function(entry){renderCard(entry)});
+          data.entries.forEach(function(entry){
+            // Save good mapping for next images
+            if(entry.mapping.confidence>0){
+              lastGoodMapping={
+                nguoi_nhan:entry.ocr.nguoi_nhan,
+                nganh_nghe:entry.mapping.nganh_nghe,
+                danh_muc:entry.mapping.danh_muc,
+                pttt:entry.mapping.pttt,
+                confidence:entry.mapping.confidence
+              };
+            }
+            // If this entry has no mapping but prev does, apply it
+            if(entry.mapping.confidence===0&&lastGoodMapping){
+              entry.mapping.nganh_nghe=lastGoodMapping.nganh_nghe;
+              entry.mapping.danh_muc=lastGoodMapping.danh_muc;
+              // Keep PTTT from OCR bank detection if available, else use prev
+              if(!entry.mapping.pttt)entry.mapping.pttt=lastGoodMapping.pttt;
+              entry.mapping.confidence=lastGoodMapping.confidence;
+              entry.mapping.source="prev_image";
+            }
+            renderCard(entry);
+          });
         }else{
           botMsg("Không đọc được ảnh "+(idx+1));
         }

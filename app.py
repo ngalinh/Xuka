@@ -102,8 +102,11 @@ async def process_images(
         content = await f.read()
         file_data.append((content, f.content_type or "image/png"))
 
-    # OCR each image (sequential to avoid API rate limits on free tier)
+    # OCR each image
     entries = []
+    # Track best mapping found (to share across entries with same recipient)
+    best_mapping: dict[str, dict] = {}  # normalized_name → mapping dict
+
     for i, (data, mt) in enumerate(file_data):
         try:
             ocr = extract_transfer(data, mt)
@@ -117,8 +120,28 @@ async def process_images(
             ngan_hang=ocr.ngan_hang,
             user_note=note,
         )
+
+        # If this entry has no mapping but we already found one for same recipient
+        from bot.services.memory import normalize_name
+        norm_name = normalize_name(ocr.nguoi_nhan)
+        if mapping.confidence == 0 and norm_name in best_mapping:
+            prev = best_mapping[norm_name]
+            mapping = type(mapping)(
+                nganh_nghe=prev["nganh_nghe"],
+                danh_muc=prev["danh_muc"],
+                pttt=prev["pttt"],
+                confidence=prev["confidence"],
+                source="same_batch",
+            )
+        elif mapping.confidence > 0 and norm_name:
+            best_mapping[norm_name] = {
+                "nganh_nghe": mapping.nganh_nghe,
+                "danh_muc": mapping.danh_muc,
+                "pttt": mapping.pttt,
+                "confidence": mapping.confidence,
+            }
+
         loai = "Thu" if ocr.loai == "thu" else "Chi"
-        # Use note as noi_dung if provided
         noi_dung = note if note else (ocr.noi_dung or ocr.nguoi_nhan)
         entries.append({
             "id": f"entry_{i}",
@@ -138,23 +161,6 @@ async def process_images(
             },
             "loai": loai,
         })
-
-    # Check batch consistency
-    if len(entries) > 1:
-        first = entries[0]["mapping"]
-        consistent = all(
-            e["mapping"]["nganh_nghe"] == first["nganh_nghe"]
-            and e["mapping"]["danh_muc"] == first["danh_muc"]
-            and e["mapping"]["pttt"] == first["pttt"]
-            for e in entries[1:]
-        )
-    else:
-        consistent = True
-
-    shared = None
-    if consistent and entries:
-        m = entries[0]["mapping"]
-        shared = {"nganh_nghe": m["nganh_nghe"], "danh_muc": m["danh_muc"], "pttt": m["pttt"]}
 
     return {
         "entries": entries,
