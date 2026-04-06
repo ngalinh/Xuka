@@ -311,51 +311,57 @@ class DeleteRequest(BaseModel):
     ngay_tt: str
     noi_dung: str
     so_tien: int
+    is_zelle: bool = False
 
 
 @app.post("/api/delete")
 async def delete_entry(req: DeleteRequest):
-    """Xóa giao dịch khỏi Google Sheet dựa trên ngày + nội dung + số tiền."""
+    """Xóa giao dịch khỏi Google Sheet."""
     try:
-        from bot.services.sheets import _get_worksheet
-        ws = _get_worksheet()
-        all_vals = ws.get_all_values()
+        from bot.services.sheets import _get_client
+        from bot.config import SPREADSHEET_URL
+        client = _get_client()
+        ss = client.open_by_url(SPREADSHEET_URL)
 
-        # Normalize for comparison
         def norm_amt(s: str) -> int:
-            return int(s.replace(",", "").replace(".", "").replace(" ", "")) if s.strip() else 0
+            return int(s.replace(",", "").replace(".", "").replace(" ", "").replace("$", "")) if s.strip() else 0
 
         target_amt = req.so_tien
         target_ngay = req.ngay_tt.replace("'", "").strip()
-        target_nd = req.noi_dung.strip().lower()
 
-        for i in range(len(all_vals) - 1, 0, -1):
-            row = all_vals[i]
-            if len(row) < 8:
-                continue
-            row_ngay = row[1].replace("'", "").strip()
-            row_nd = row[4].strip().lower()
-            try:
-                row_amt = max(norm_amt(row[5]), norm_amt(row[6]))
-            except (ValueError, IndexError):
-                continue
-            if row_ngay == target_ngay and row_nd == target_nd and row_amt == target_amt:
-                ws.delete_rows(i + 1)
-                return {"success": True, "deleted_row": i + 1}
-
-        # Fallback: match by amount + date only (looser match)
-        for i in range(len(all_vals) - 1, 0, -1):
-            row = all_vals[i]
-            if len(row) < 8:
-                continue
-            row_ngay = row[1].replace("'", "").strip()
-            try:
-                row_amt = max(norm_amt(row[5]), norm_amt(row[6]))
-            except (ValueError, IndexError):
-                continue
-            if row_ngay == target_ngay and row_amt == target_amt:
-                ws.delete_rows(i + 1)
-                return {"success": True, "deleted_row": i + 1}
+        if req.is_zelle:
+            # Search in Lãi tỉ giá sheet
+            ws = ss.worksheet("Lãi tỉ giá")
+            all_vals = ws.get_all_values()
+            for i in range(len(all_vals) - 1, 0, -1):
+                row = all_vals[i]
+                if len(row) < 7:
+                    continue
+                row_ngay = row[0].replace("'", "").strip()
+                try:
+                    row_amt = norm_amt(row[4])  # Total CK column
+                except (ValueError, IndexError):
+                    continue
+                if row_ngay == target_ngay and row_amt == target_amt:
+                    # Clear A-G and J instead of deleting row (preserve formulas)
+                    ws.batch_clear([f"A{i+1}:G{i+1}", f"J{i+1}"])
+                    return {"success": True, "deleted_row": i + 1, "sheet": "Lãi tỉ giá"}
+        else:
+            # Search in Thu Chi sheet
+            ws = ss.worksheet("Thu Chi")
+            all_vals = ws.get_all_values()
+            for i in range(len(all_vals) - 1, 0, -1):
+                row = all_vals[i]
+                if len(row) < 8:
+                    continue
+                row_ngay = row[1].replace("'", "").strip()
+                try:
+                    row_amt = max(norm_amt(row[5]), norm_amt(row[6]))
+                except (ValueError, IndexError):
+                    continue
+                if row_ngay == target_ngay and row_amt == target_amt:
+                    ws.delete_rows(i + 1)
+                    return {"success": True, "deleted_row": i + 1, "sheet": "Thu Chi"}
 
         return {"success": False, "error": "Không tìm thấy giao dịch"}
     except Exception as e:

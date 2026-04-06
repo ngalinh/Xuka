@@ -452,7 +452,7 @@ function renderCard(entry){
       del.addEventListener("click",function(){
         del.disabled=true;del.textContent="Đang xóa...";
         fetch("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({ngay_tt:savedData.ngay_tt,noi_dung:savedData.noi_dung,so_tien:savedData.so_tien})})
+          body:JSON.stringify({ngay_tt:savedData.ngay_tt,noi_dung:savedData.noi_dung,so_tien:savedData.so_tien,is_zelle:!!savedData.is_zelle})})
           .then(function(r){return r.json()})
           .then(function(d){
             if(d.success){card.style.opacity=".3";botMsg("Đã xóa giao dịch.")}
