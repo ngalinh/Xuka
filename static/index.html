@@ -223,8 +223,7 @@ onSend=function(){
 };
 
 function resizeImage(file,maxW,callback){
-  // Skip resize for small files (<500KB) - send directly
-  if(file.size<500000){callback(file);return}
+  // Always resize to keep upload fast
   try{
     var reader=new FileReader();
     reader.onerror=function(){callback(file)};// fallback: send original
@@ -259,12 +258,12 @@ function processOneByOne(files,note,idx){
   var total=files.length;
   if(total>1)botMsg("Đang xử lý ảnh "+(idx+1)+"/"+total+"...");
   showTyping();
-  resizeImage(files[idx],1200,function(resizedFile){
+  resizeImage(files[idx],800,function(resizedFile){
     var fd=new FormData();
     fd.append("files",resizedFile);
     fd.append("note",note||"");
     if(lastGoodMapping)fd.append("prev_mapping",JSON.stringify(lastGoodMapping));
-    fetch("/api/process",{method:"POST",body:fd,signal:AbortSignal.timeout?AbortSignal.timeout(60000):undefined})
+    fetch("/api/process",{method:"POST",body:fd})
       .then(function(r){
         if(!r.ok)throw new Error("HTTP "+r.status);
         return r.json();
