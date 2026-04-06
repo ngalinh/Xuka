@@ -320,18 +320,43 @@ async def delete_entry(req: DeleteRequest):
         from bot.services.sheets import _get_worksheet
         ws = _get_worksheet()
         all_vals = ws.get_all_values()
-        amt_str = _format_amount(req.so_tien)
-        for i in range(len(all_vals) - 1, 0, -1):  # Search from bottom
+
+        # Normalize for comparison
+        def norm_amt(s: str) -> int:
+            return int(s.replace(",", "").replace(".", "").replace(" ", "")) if s.strip() else 0
+
+        target_amt = req.so_tien
+        target_ngay = req.ngay_tt.replace("'", "").strip()
+        target_nd = req.noi_dung.strip().lower()
+
+        for i in range(len(all_vals) - 1, 0, -1):
             row = all_vals[i]
             if len(row) < 8:
                 continue
-            row_ngay = row[1].replace("'", "")
-            row_nd = row[4]
-            row_thu = row[5]
-            row_chi = row[6]
-            if row_ngay == req.ngay_tt and row_nd == req.noi_dung and (row_thu == amt_str or row_chi == amt_str):
-                ws.delete_rows(i + 1)  # gspread is 1-indexed
+            row_ngay = row[1].replace("'", "").strip()
+            row_nd = row[4].strip().lower()
+            try:
+                row_amt = max(norm_amt(row[5]), norm_amt(row[6]))
+            except (ValueError, IndexError):
+                continue
+            if row_ngay == target_ngay and row_nd == target_nd and row_amt == target_amt:
+                ws.delete_rows(i + 1)
                 return {"success": True, "deleted_row": i + 1}
+
+        # Fallback: match by amount + date only (looser match)
+        for i in range(len(all_vals) - 1, 0, -1):
+            row = all_vals[i]
+            if len(row) < 8:
+                continue
+            row_ngay = row[1].replace("'", "").strip()
+            try:
+                row_amt = max(norm_amt(row[5]), norm_amt(row[6]))
+            except (ValueError, IndexError):
+                continue
+            if row_ngay == target_ngay and row_amt == target_amt:
+                ws.delete_rows(i + 1)
+                return {"success": True, "deleted_row": i + 1}
+
         return {"success": False, "error": "Không tìm thấy giao dịch"}
     except Exception as e:
         logger.error("Delete error: %s", e)

@@ -256,7 +256,23 @@ def append_zelle_entry(
             next_row = i + 2
             break
 
-    # Write A-G (data) and J (note) separately to preserve formulas in H-I
+    # Copy format from the row above (so new row matches existing style)
+    src_row = next_row - 1 if next_row > 2 else 2
+    try:
+        sheet_id = ws.id
+        ss.batch_update({"requests": [{
+            "copyPaste": {
+                "source": {"sheetId": sheet_id, "startRowIndex": src_row - 1, "endRowIndex": src_row,
+                           "startColumnIndex": 0, "endColumnIndex": 7},
+                "destination": {"sheetId": sheet_id, "startRowIndex": next_row - 1, "endRowIndex": next_row,
+                                "startColumnIndex": 0, "endColumnIndex": 7},
+                "pasteType": "PASTE_FORMAT"
+            }
+        }]})
+    except Exception as fmt_err:
+        logger.warning("Format copy failed: %s", fmt_err)
+
+    # Write A-G data, preserve H-I formulas
     ws.update(f"A{next_row}:G{next_row}", [[
         "'" + ngay, "Zelle", "Mua zelle", tai_khoan_nhan,
         f"{total_ck:,}", usd_str, f"{ti_gia_mua:,}",
