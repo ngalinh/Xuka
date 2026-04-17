@@ -52,17 +52,28 @@ def map_entry(
     confidence = 0
     source = "none"
 
-    # 1. Bot Memory (by normalized recipient name)
-    mem = memory_lookup(nguoi_nhan) if nguoi_nhan else None
-    if mem and mem.get("nganh_nghe"):
-        nn = mem["nganh_nghe"]
-        dm = mem["danh_muc"]
-        pt = mem["pttt"]
-        confidence = min(95, 70 + mem.get("count", 1) * 5)
-        source = "memory"
-        logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
+    # 1. Sheet history by NOI_DUNG (text content) - HIGHEST priority
+    # If noi_dung matches a known content (e.g. "Binh Thanh"), use that
+    if noi_dung:
+        hist = find_mapping(noi_dung)
+        if hist:
+            nn, dm, pt = hist
+            confidence = 90
+            source = "history_text"
+            logger.info("Text history match: %s → %s/%s/%s", noi_dung, nn, dm, pt)
 
-    # 2. Sheet history by recipient
+    # 2. Bot Memory (by normalized recipient name)
+    if not nn:
+        mem = memory_lookup(nguoi_nhan) if nguoi_nhan else None
+        if mem and mem.get("nganh_nghe"):
+            nn = mem["nganh_nghe"]
+            dm = mem["danh_muc"]
+            pt = mem["pttt"]
+            confidence = min(95, 70 + mem.get("count", 1) * 5)
+            source = "memory"
+            logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
+
+    # 3. Sheet history by recipient name
     if not nn and nguoi_nhan:
         hist = find_by_recipient(nguoi_nhan)
         if hist:
@@ -71,7 +82,7 @@ def map_entry(
             source = "history_recipient"
             logger.info("Recipient history match: %s", nguoi_nhan)
 
-    # 3. Keyword inference FIRST (more reliable than fuzzy text match)
+    # 4. Keyword inference (fallback)
     search_text = (user_note or "") + " " + (noi_dung or "")
     search_lower = search_text.lower()
     if not nn or not dm:
@@ -87,14 +98,6 @@ def map_entry(
                     confidence = 70
                     source = "keyword"
                 break
-
-    # 4. Sheet history by text (fallback if keyword didn't match)
-    if not nn and noi_dung:
-        hist = find_mapping(noi_dung)
-        if hist:
-            nn, dm, pt = hist
-            confidence = 80
-            source = "history_text"
 
     # 5. Bank → PTTT heuristic
     if not pt and ngan_hang:

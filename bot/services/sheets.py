@@ -89,9 +89,11 @@ def _load_cache() -> None:
         return
 
     normalize_name = _normalize
+    from collections import Counter
 
-    mapping: dict[str, tuple[str, str, str]] = {}
-    recipient: dict[str, tuple[str, str, str]] = {}
+    # Track all mappings per key to find most common
+    mapping_counts: dict[str, Counter] = {}
+    recipient_counts: dict[str, Counter] = {}
     nganh_set: set[str] = set()
     dm_thu_set: set[str] = set()
     dm_chi_set: set[str] = set()
@@ -116,8 +118,12 @@ def _load_cache() -> None:
                     dm_chi_set.add(dm)
             if pt:
                 pttt_set.add(pt)
+
+            # Build mapping by noi_dung (count occurrences)
             if nd and (nn or dm or pt):
-                mapping[nd] = (nn, dm, pt)
+                if nd not in mapping_counts:
+                    mapping_counts[nd] = Counter()
+                mapping_counts[nd][(nn, dm, pt)] += 1
 
             # Build recipient cache
             names_to_index = []
@@ -132,10 +138,16 @@ def _load_cache() -> None:
             for name in names_to_index:
                 key = normalize_name(name)
                 if key and len(key) > 2 and (nn or dm or pt):
-                    recipient[key] = (nn, dm, pt)
+                    if key not in recipient_counts:
+                        recipient_counts[key] = Counter()
+                    recipient_counts[key][(nn, dm, pt)] += 1
         except Exception as row_err:
             logger.warning("Skip row error: %s", row_err)
             continue
+
+    # Pick most common mapping for each key
+    mapping = {k: c.most_common(1)[0][0] for k, c in mapping_counts.items()}
+    recipient = {k: c.most_common(1)[0][0] for k, c in recipient_counts.items()}
 
     _mapping_cache = mapping
     _recipient_cache = recipient
@@ -172,21 +184,33 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
     if noi_dung in _mapping_cache:
         return _mapping_cache[noi_dung]
 
-    noi_dung_lower = noi_dung.lower()
+    noi_dung_lower = noi_dung.strip().lower()
+    if len(noi_dung_lower) < 3:
+        return None
+
+    # Exact match first
+    if noi_dung in _mapping_cache:
+        return _mapping_cache[noi_dung]
+    for k in _mapping_cache:
+        if k.lower() == noi_dung_lower:
+            return _mapping_cache[k]
+
+    input_words = set(noi_dung_lower.split())
     best_match: str | None = None
     best_score = 0
 
     for key in _mapping_cache:
         key_lower = key.lower()
+        # Substring match (both directions)
         if key_lower in noi_dung_lower or noi_dung_lower in key_lower:
-            score = len(key)
+            score = len(key_lower)
             if score > best_score:
                 best_score = score
                 best_match = key
             continue
-        words_input = set(noi_dung_lower.split())
+        # Word overlap match
         words_key = set(key_lower.split())
-        overlap = len(words_input & words_key)
+        overlap = len(input_words & words_key)
         if overlap >= 2 and overlap > best_score:
             best_score = overlap
             best_match = key
@@ -211,12 +235,56 @@ def append_entry(
     """Thêm một dòng vào sheet Thu Chi."""
     ws = _get_worksheet()
     final_gc = nguoi_nhan if nguoi_nhan else ghi_chu
+    col_a = ws.col_values(1)
+    new_row = len(col_a) + 1
     ws.append_row(
-        [thang, "'" + ngay_tt, nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc],
+        [thang, _ngay_to_formula(ngay_tt), nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc],
         value_input_option="USER_ENTERED",
     )
+    _apply_date_format(ws, new_row)
     global _cache_time
     _cache_time = 0
+
+
+def _ngay_to_formula(ngay_tt: str) -> str:
+    """Convert DD/MM/YYYY to =DATE(Y,M,D) formula for Google Sheets."""
+    if not ngay_tt:
+        return ""
+    try:
+        parts = ngay_tt.strip().split("/")
+        if len(parts) != 3:
+            return ngay_tt
+        d, m, y = parts
+        return f"=DATE({int(y)},{int(m)},{int(d)})"
+    except (ValueError, IndexError):
+        return ngay_tt
+
+
+def _apply_date_format(ws, row_num: int) -> None:
+    """Set dd/MM/yyyy format for column B (Ngày TT) of a specific row."""
+    try:
+        sheet_id = ws.id
+        ws.spreadsheet.batch_update({
+            "requests": [{
+                "repeatCell": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "startRowIndex": row_num - 1,
+                        "endRowIndex": row_num,
+                        "startColumnIndex": 1,
+                        "endColumnIndex": 2,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "numberFormat": {"type": "DATE", "pattern": "dd/MM/yyyy"}
+                        }
+                    },
+                    "fields": "userEnteredFormat.numberFormat",
+                }
+            }]
+        })
+    except Exception as e:
+        logger.warning("Date format apply failed row %d: %s", row_num, e)
 
 
 def append_entries(entries: list[dict[str, Any]]) -> None:
@@ -224,15 +292,32 @@ def append_entries(entries: list[dict[str, Any]]) -> None:
     ws = _get_worksheet()
     rows = []
     for e in entries:
-        final_gc = e.get("nguoi_nhan", "") or e.get("ghi_chu", "")
+        # Ghi chú: link ảnh (HYPERLINK formula) + tên người nhận
+        nn = e.get("nguoi_nhan", "")
+        img = e.get("image_url", "")
+        if img:
+            label = nn if nn else "Xem ảnh"
+            # Escape quotes in label
+            label_safe = label.replace('"', '""')
+            final_gc = f'=HYPERLINK("{img}","{label_safe}")'
+        elif nn:
+            final_gc = nn
+        else:
+            final_gc = e.get("ghi_chu", "")
         rows.append([
-            e.get("thang", ""), "'" + e.get("ngay_tt", ""),
+            e.get("thang", ""), _ngay_to_formula(e.get("ngay_tt", "")),
             e.get("nganh_nghe", ""), e.get("danh_muc", ""),
             e.get("noi_dung", ""), e.get("thu", ""), e.get("chi", ""),
             e.get("pttt", ""), final_gc,
         ])
     if rows:
+        # Determine start row before appending
+        col_a = ws.col_values(1)
+        start_row = len(col_a) + 1
         ws.append_rows(rows, value_input_option="USER_ENTERED")
+        # Apply date format to new rows
+        for i in range(len(rows)):
+            _apply_date_format(ws, start_row + i)
     global _cache_time
     _cache_time = 0
 
@@ -274,9 +359,14 @@ def append_zelle_entry(
 
     # Write A-G data, preserve H-I formulas
     ws.update(f"A{next_row}:G{next_row}", [[
-        "'" + ngay, "Zelle", "Mua zelle", tai_khoan_nhan,
+        _ngay_to_formula(ngay), "Zelle", "Mua zelle", tai_khoan_nhan,
         f"{total_ck:,}", usd_str, f"{ti_gia_mua:,}",
     ]], value_input_option="USER_ENTERED")
     if note:
-        ws.update(f"J{next_row}", [[note]], value_input_option="USER_ENTERED")
+        # If note is a URL, convert to clickable hyperlink
+        if note.startswith("http"):
+            note_value = f'=HYPERLINK("{note}","Xem ảnh")'
+        else:
+            note_value = note
+        ws.update(f"J{next_row}", [[note_value]], value_input_option="USER_ENTERED")
     logger.info("Zelle saved row %d: %s $%s tỉ giá %s", next_row, tai_khoan_nhan, usd_str, ti_gia_mua)

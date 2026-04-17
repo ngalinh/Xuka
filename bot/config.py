@@ -6,26 +6,27 @@ import base64
 import tempfile
 import logging
 
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from project root (works regardless of cwd)
+_project_root = Path(__file__).resolve().parent.parent
+load_dotenv(_project_root / ".env", override=True)
 
 logger = logging.getLogger(__name__)
 
 
 def _resolve_credentials_file() -> str:
-    path = os.getenv("GOOGLE_CREDENTIALS_FILE", "./credentials.json")
+    default_cred = str(_project_root / "credentials.json")
+    path = os.getenv("GOOGLE_CREDENTIALS_FILE", default_cred)
+    # Resolve relative paths against project root
+    if not os.path.isabs(path):
+        path = str(_project_root / path)
     if os.path.exists(path):
         logger.info("Using credentials from file: %s", path)
         return path
 
-    # Check Render secret file path
-    secret_path = "/etc/secrets/credentials.json"
-    if os.path.exists(secret_path):
-        logger.info("Using credentials from Render secret file: %s", secret_path)
-        return secret_path
-
-    # Try env var (base64 or raw JSON)
+    # Try env var (base64 or raw JSON) - useful for hosted environments
     raw_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
     if raw_json:
         try:
@@ -55,5 +56,5 @@ SPREADSHEET_URL = os.getenv(
     "https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit",
 )
 SHEET_NAME = os.getenv("SHEET_NAME", "Thu Chi")
-PORT = int(os.getenv("PORT", "8000"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")

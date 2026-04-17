@@ -1,62 +1,90 @@
-# Xuka - Bot Telegram Ke Toan
+# Xuka - Bot Telegram Kế Toán
 
-Bot Telegram ghi nhan khoan Thu/Chi cua cong ty vao Google Sheets.
+Bot Telegram đọc screenshot chuyển khoản (Claude Vision OCR), tự động phân loại Ngành nghề / Danh mục / PTTT và ghi vào Google Sheets.
 
-## Cai dat
+## Tính năng
 
-### 1. Cai dat thu vien
+- **OCR ảnh chuyển khoản**: Đọc tự động số tiền, người nhận, ngày, nội dung từ ảnh CK của các app ngân hàng VN (MB, VCB, TCB, VPBank, ACB...) và app quốc tế (Zelle, Cash App, PayPal, Wise...).
+- **Auto mapping**: Tự gợi ý Ngành nghề / Danh mục / PTTT dựa trên lịch sử trong Google Sheet và bộ nhớ học (Bot Memory).
+- **Caption ghi chú**: Gửi ảnh kèm caption để override nội dung. Hỗ trợ override tháng (`tháng 3`).
+- **USD payment**: Tự động convert USD → VND (× 26,000) và map vào Vận chuyển quốc tế.
+- **Zelle**: Detect caption `mua $116 zelle` → ghi vào sheet `Lãi tỉ giá`.
+- **Media group (album)**: Gửi nhiều ảnh cùng caption → chia sẻ caption cho cả album.
+- **Group chat**: Tự lọc tin user-to-user, chỉ xử lý khi tag bot hoặc reply.
+- **Xóa giao dịch**: Nút xóa trong vòng 2 phút sau khi lưu.
+
+## Cài đặt
+
+### 1. Cài thư viện
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Tao Telegram Bot
+### 2. Tạo Telegram Bot
 
-1. Mo Telegram, tim `@BotFather`
-2. Gui `/newbot`, dat ten bot la **Xuka**
-3. Copy token bot
+1. Mở Telegram, tìm `@BotFather`
+2. Gửi `/newbot`, đặt tên bot
+3. Copy token
 
-### 3. Cai dat Google Sheets API
+### 3. Cài Google Sheets API
 
-1. Vao [Google Cloud Console](https://console.cloud.google.com/)
-2. Tao project moi (hoac chon project co san)
-3. Bat **Google Sheets API** va **Google Drive API**
-4. Tao **Service Account**, tai file JSON key ve, dat ten la `credentials.json` trong thu muc goc du an
-5. Mo Google Spreadsheet, chia se (Share) voi email cua Service Account (quyen **Editor**)
+1. Vào [Google Cloud Console](https://console.cloud.google.com/)
+2. Tạo project, bật **Google Sheets API** + **Google Drive API**
+3. Tạo **Service Account**, tải file JSON key về, đặt tên `credentials.json` ở thư mục gốc
+4. Mở Google Spreadsheet, share với email của Service Account (quyền **Editor**)
 
-### 4. Cau hinh
+### 4. Lấy Anthropic API Key
 
-Copy file `.env.example` thanh `.env` va dien thong tin:
+Vào [console.anthropic.com](https://console.anthropic.com/) tạo API key.
+
+### 5. Cấu hình `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Sua file `.env`:
+Sửa `.env`:
 ```
-TELEGRAM_BOT_TOKEN=your-bot-token
+TELEGRAM_BOT_TOKEN=<bot-token>
+ANTHROPIC_API_KEY=<anthropic-key>
 GOOGLE_CREDENTIALS_FILE=./credentials.json
-SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit
+SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/.../edit
 SHEET_NAME=Thu Chi
 ```
 
-### 5. Tao sheet "Thu Chi"
+### 6. Cấu trúc Google Sheet
 
-Trong Google Spreadsheet, tao sheet ten la **Thu Chi** voi header (dong 1):
+Sheet `Thu Chi` (header dòng 1):
 
-| A | B | C | D | E | F | G |
-|---|---|---|---|---|---|---|
-| Ngay | Loai | Danh muc | So tien | Ghi chu | Nguoi nhap | Thoi gian |
+| A | B | C | D | E | F | G | H | I |
+|---|---|---|---|---|---|---|---|---|
+| Tháng | Ngày TT | Ngành nghề | Danh mục | Nội dung | Thu | Chi | PTTT | Ghi chú |
 
-### 6. Chay bot
+(Tùy chọn) Sheet `Lãi tỉ giá` cho zelle, sheet `Bot Memory` cho bộ nhớ học.
+
+## Chạy bot
 
 ```bash
-python -m bot.main
+python telegram_bot.py
 ```
 
-## Su dung
+Bot dùng polling mode — chỉ cần host nào chạy được Python liên tục là được.
 
-- `/start` - Bat dau, xem huong dan
-- `/thu` - Nhap khoan thu (income)
-- `/chi` - Nhap khoan chi (expense)
-- `/huy` - Huy thao tac dang nhap
+## Deploy
+
+Bot chạy polling, không cần webhook/port. Chỉ cần:
+- Python 3.9+
+- Cài `requirements.txt`
+- Set env vars (hoặc upload `.env` + `credentials.json`)
+- Chạy `python telegram_bot.py` dưới dạng background service / systemd / PM2 / Docker / tmux
+
+Có thể dùng env var `GOOGLE_CREDENTIALS_JSON` (raw JSON hoặc base64) thay cho file `credentials.json` trong môi trường hosted.
+
+## Sử dụng
+
+- `/start` — bắt đầu
+- `/help` — xem hướng dẫn đầy đủ
+- Gửi ảnh CK → bot đọc và hiện card xác nhận → bấm Lưu
+- Gửi ảnh + caption để thêm ghi chú / override tháng / khai báo zelle
+- Gửi text "Chi văn phòng 2tr" để nhập thủ công
