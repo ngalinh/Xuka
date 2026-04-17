@@ -4,8 +4,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from bot.services.memory import memory_lookup
-from bot.services.sheets import find_by_recipient, find_mapping
+from xuka.services.memory import memory_lookup
+from xuka.services.sheets import find_by_recipient, find_mapping
 
 logger = logging.getLogger(__name__)
 

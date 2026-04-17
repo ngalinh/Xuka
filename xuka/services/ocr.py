@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import anthropic
 
-from bot.config import ANTHROPIC_API_KEY
+from xuka.config import ANTHROPIC_API_KEY
 
 logger = logging.getLogger(__name__)
 

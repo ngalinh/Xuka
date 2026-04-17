@@ -13,11 +13,11 @@ from telegram.ext import (
     filters, ContextTypes,
 )
 
-from bot.config import TELEGRAM_BOT_TOKEN
-from bot.services.ocr import extract_transfer
-from bot.services.mapper import map_entry
-from bot.services.memory import memory_upsert
-from bot.services.sheets import (
+from xuka.config import TELEGRAM_BOT_TOKEN
+from xuka.services.ocr import extract_transfer
+from xuka.services.mapper import map_entry
+from xuka.services.memory import memory_upsert
+from xuka.services.sheets import (
     append_entries, append_zelle_entry,
     get_unique_nganh_nghe, get_unique_danh_muc, get_unique_pttt,
 )
@@ -798,8 +798,8 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int):
 
 async def _delete_saved(info: dict):
     """Delete a saved row from the appropriate sheet."""
-    from bot.services.sheets import _get_client
-    from bot.config import SPREADSHEET_URL
+    from xuka.services.sheets import _get_client
+    from xuka.config import SPREADSHEET_URL
     client = _get_client()
     ss = client.open_by_url(SPREADSHEET_URL)
 

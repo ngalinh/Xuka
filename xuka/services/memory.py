@@ -8,8 +8,8 @@ from datetime import datetime, timezone, timedelta
 import gspread
 from unidecode import unidecode
 
-from bot.services.sheets import _get_client
-from bot.config import SPREADSHEET_URL
+from xuka.services.sheets import _get_client
+from xuka.config import SPREADSHEET_URL
 
 logger = logging.getLogger(__name__)
 

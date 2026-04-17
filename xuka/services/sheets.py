@@ -8,7 +8,7 @@ from typing import Any
 import gspread
 from google.oauth2.service_account import Credentials
 
-from bot.config import GOOGLE_CREDENTIALS_FILE, SPREADSHEET_URL, SHEET_NAME
+from xuka.config import GOOGLE_CREDENTIALS_FILE, SPREADSHEET_URL, SHEET_NAME
 
 logger = logging.getLogger(__name__)
 
