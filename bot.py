@@ -254,6 +254,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = msg.caption or ""
     chat_id = msg.chat_id
     media_group_id = msg.media_group_id
+    u = msg.from_user
+    user_tag = f"{u.username or u.first_name or '?'}(id={u.id})"
+    logger.info("[PHOTO-IN] user=%s chat=%s msg_id=%s media_group=%s caption=%r",
+                user_tag, chat_id, msg.message_id, media_group_id, caption)
 
     # Handle media group (album): share caption across all photos in group
     if media_group_id:
@@ -421,6 +425,8 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
                 entry["mapping"]["source"] = "zelle_auto"
 
         eid = _store_entry(chat_id, entry)
+        logger.info("[CARD-CREATED] chat=%s eid=%s | %s",
+                    chat_id, eid, _entry_summary(entry))
         text = _build_card_text(entry)
         kb = _build_card_buttons(eid, entry.get("is_zelle", False))
         # Delete progress message and send card
@@ -566,27 +572,59 @@ async def handle_amount_followup(update: Update, context: ContextTypes.DEFAULT_T
 
 # ===== Callback Handlers =====
 
+def _user_tag(query) -> str:
+    """Format user info for logs: 'username(id)' or 'FirstName(id)'."""
+    u = query.from_user
+    name = u.username or u.first_name or "?"
+    return f"{name}(id={u.id})"
+
+
+def _entry_summary(entry: dict) -> str:
+    """Compact summary of an entry for logs."""
+    ocr = entry.get("ocr", {})
+    mp = entry.get("mapping", {})
+    return (
+        f"so_tien={ocr.get('so_tien')}, nguoi={ocr.get('nguoi_nhan','')!r}, "
+        f"nd={ocr.get('noi_dung','')!r}, nn={mp.get('nganh_nghe','')!r}, "
+        f"dm={mp.get('danh_muc','')!r}, pttt={mp.get('pttt','')!r}, "
+        f"loai={entry.get('loai','')}, zelle={entry.get('is_zelle', False)}"
+    )
+
+
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     data = query.data
     chat_id = query.message.chat_id
+    user_tag = _user_tag(query)
 
     # Save
     if data.startswith("save_"):
         eid = data[5:]
         entry = _get_entry(chat_id, eid)
         if not entry:
+            logger.warning("[SAVE-FAIL] user=%s chat=%s eid=%s reason=entry_expired",
+                           user_tag, chat_id, eid)
             await query.edit_message_text("⚠️ Giao dịch đã hết hạn.")
             return
+        logger.info("[SAVE-CLICK] user=%s chat=%s eid=%s | %s",
+                    user_tag, chat_id, eid, _entry_summary(entry))
         # Clear any stale editing state for this entry
         if context.user_data.get("editing_noi_dung") == eid:
             context.user_data.pop("editing_noi_dung", None)
-        await _save_entry(query, entry, eid, chat_id)
+        await _save_entry(query, entry, eid, chat_id, user_tag=user_tag)
         return
 
     # Skip
     if data.startswith("skip_"):
+        eid = data[5:]
+        entry = _get_entry(chat_id, eid)
+        if entry:
+            logger.info("[SKIP-CLICK] user=%s chat=%s eid=%s | %s",
+                        user_tag, chat_id, eid, _entry_summary(entry))
+        else:
+            logger.info("[SKIP-CLICK] user=%s chat=%s eid=%s (entry not in store - may be old card)",
+                        user_tag, chat_id, eid)
         # Clear any stale editing state
         context.user_data.pop("editing_noi_dung", None)
         await query.edit_message_text("❌ Đã hủy giao dịch.")
@@ -598,20 +636,27 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid = data[4:]
         info = saved_entries.get(eid)
         if not info:
+            logger.warning("[DELETE-FAIL] user=%s chat=%s eid=%s reason=not_in_saved_entries (>2min or already deleted)",
+                           user_tag, chat_id, eid)
             await query.edit_message_text("⚠️ Quá thời gian xóa (2 phút).")
             return
         # Check 2 min limit
         if time.time() - info["saved_at"] > 120:
+            logger.warning("[DELETE-FAIL] user=%s chat=%s eid=%s reason=>2min_limit", user_tag, chat_id, eid)
             del saved_entries[eid]
             await query.edit_message_text("⚠️ Quá thời gian xóa (2 phút).")
             return
+        logger.info("[DELETE-CLICK] user=%s chat=%s eid=%s | ngay=%s so_tien=%s nguoi=%r nd=%r zelle=%s",
+                    user_tag, chat_id, eid, info.get("ngay_tt"), info.get("so_tien"),
+                    info.get("nguoi_nhan",""), info.get("noi_dung",""), info.get("is_zelle"))
         # Delete from sheet
         try:
             await _delete_saved(info)
             del saved_entries[eid]
+            logger.info("[DELETE-OK] user=%s eid=%s", user_tag, eid)
             await query.edit_message_text("🗑 Đã xóa giao dịch khỏi sheet.")
         except Exception as e:
-            logger.error("Delete error: %s", e)
+            logger.error("[DELETE-ERR] user=%s eid=%s err=%s", user_tag, eid, e)
             await query.edit_message_reply_markup(None)
             await query.message.reply_text(f"❌ Lỗi xóa: {e}")
         return
@@ -663,7 +708,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid, val = parts[0], parts[1]
         entry = _get_entry(chat_id, eid)
         if entry:
+            old = entry["mapping"].get("nganh_nghe", "")
             entry["mapping"]["nganh_nghe"] = val
+            logger.info("[EDIT-NN] user=%s chat=%s eid=%s %r → %r",
+                        user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
             kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -675,7 +723,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid, val = parts[0], parts[1]
         entry = _get_entry(chat_id, eid)
         if entry:
+            old = entry["mapping"].get("danh_muc", "")
             entry["mapping"]["danh_muc"] = val
+            logger.info("[EDIT-DM] user=%s chat=%s eid=%s %r → %r",
+                        user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
             kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -687,7 +738,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid, val = parts[0], parts[1]
         entry = _get_entry(chat_id, eid)
         if entry:
+            old = entry["mapping"].get("pttt", "")
             entry["mapping"]["pttt"] = val
+            logger.info("[EDIT-PTTT] user=%s chat=%s eid=%s %r → %r",
+                        user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
             kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
@@ -704,7 +758,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
 
-async def _save_entry(query, entry: dict, eid: str, chat_id: int):
+async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str = "?"):
     import time
     ocr = entry["ocr"]
     mp = entry["mapping"]
@@ -718,6 +772,9 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int):
         if is_zelle:
             z = entry["zelle"]
             zelle_note = entry.get("image_url", "") or ocr.get("noi_dung", "")
+            logger.info("[SAVE→Lãi tỉ giá] user=%s eid=%s | ngay=%s tk_nhan=%r usd=%s ti_gia=%s total=%s",
+                        user_tag, eid, ngay_tt, z.get("tai_khoan_nhan",""),
+                        z.get("usd"), z.get("ti_gia_mua"), z.get("total_ck"))
             append_zelle_entry(
                 ngay=ngay_tt,
                 tai_khoan_nhan=z.get("tai_khoan_nhan", ""),
@@ -742,6 +799,12 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int):
                 except (IndexError, ValueError):
                     thang = str(now.month)
 
+            logger.info("[SAVE→Thu Chi] user=%s eid=%s | thang=%s ngay=%s nn=%r dm=%r nd=%r %s=%s pttt=%r nguoi=%r img=%s",
+                        user_tag, eid, thang, ngay_tt,
+                        mp.get("nganh_nghe",""), mp.get("danh_muc",""),
+                        ocr.get("noi_dung",""), loai, _fmt(so_tien),
+                        mp.get("pttt",""), ocr.get("nguoi_nhan",""),
+                        bool(entry.get("image_url")))
             append_entries([{
                 "thang": thang, "ngay_tt": ngay_tt,
                 "nganh_nghe": mp.get("nganh_nghe", ""),
@@ -791,8 +854,11 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int):
         if chat_id in entries_store and eid in entries_store[chat_id]:
             del entries_store[chat_id][eid]
 
+        logger.info("[SAVE-OK] user=%s eid=%s sheet=%s",
+                    user_tag, eid, "Lãi tỉ giá" if is_zelle else "Thu Chi")
+
     except Exception as e:
-        logger.error("Save error: %s", e)
+        logger.error("[SAVE-ERR] user=%s eid=%s err=%s", user_tag, eid, e)
         await query.edit_message_text(f"❌ Lỗi lưu: {e}")
 
 
@@ -810,6 +876,9 @@ async def _delete_saved(info: dict):
         s = s.replace(",", "").replace(".", "").replace(" ", "").replace("$", "")
         return int(s) if s.strip() else 0
 
+    logger.info("[DELETE-SEARCH] target_ngay=%r target_amt=%s zelle=%s",
+                target_ngay, target_amt, info["is_zelle"])
+
     if info["is_zelle"]:
         # Search Lãi tỉ giá sheet, clear A-G + J (preserve H-I formulas)
         ws = ss.worksheet("Lãi tỉ giá")
@@ -825,7 +894,7 @@ async def _delete_saved(info: dict):
                 continue
             if row_ngay == target_ngay and row_amt == target_amt:
                 ws.batch_clear([f"A{i+1}:G{i+1}", f"J{i+1}"])
-                logger.info("Deleted zelle row %d", i+1)
+                logger.info("[DELETE-DONE] sheet=Lãi tỉ giá row=%d cleared", i+1)
                 return
     else:
         # Search Thu Chi sheet, delete row
@@ -842,8 +911,13 @@ async def _delete_saved(info: dict):
                 continue
             if row_ngay == target_ngay and row_amt == target_amt:
                 ws.delete_rows(i + 1)
-                logger.info("Deleted Thu Chi row %d", i+1)
+                logger.info("[DELETE-DONE] sheet=Thu Chi row=%d ngay=%r amt=%s pttt=%r nd=%r",
+                            i+1, row_ngay, row_amt,
+                            row[7] if len(row) > 7 else "",
+                            row[4] if len(row) > 4 else "")
                 return
+    logger.error("[DELETE-NOT-FOUND] target_ngay=%r target_amt=%s zelle=%s — no matching row",
+                 target_ngay, target_amt, info["is_zelle"])
     raise ValueError("Không tìm thấy giao dịch trong sheet")
 
 
@@ -872,7 +946,12 @@ async def handle_edit_noi_dung(update: Update, context: ContextTypes.DEFAULT_TYP
         # Stale editing state (entry already saved/cancelled).
         # Silently fall through to normal text handling instead of nagging the user.
         return False
+    u = msg.from_user
+    user_tag = f"{u.username or u.first_name or '?'}(id={u.id})"
+    old = entry["ocr"].get("noi_dung", "")
     entry["ocr"]["noi_dung"] = new_nd
+    logger.info("[EDIT-ND] user=%s chat=%s eid=%s %r → %r",
+                user_tag, msg.chat_id, eid, old, new_nd)
     text = _build_card_text(entry)
     kb = _build_card_buttons(eid, entry.get("is_zelle", False))
     await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
