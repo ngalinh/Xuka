@@ -35,6 +35,8 @@ saved_entries: dict[str, dict] = {}
 pending_photos: dict[int, dict] = {}
 # Media group captions: media_group_id → caption (shared across album)
 media_group_captions: dict[str, str] = {}
+# Media groups marked to skip (any photo's caption tagged another user)
+media_group_skip: set[str] = set()
 
 
 # ===== Helpers =====
@@ -249,6 +251,29 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===== Photo Handler =====
 
+def _caption_tags_other_user(msg, bot_username: str) -> bool:
+    """Check if caption tags any user/bot OTHER than this bot.
+    Returns True if there's a mention/text_mention not pointing to the bot.
+    """
+    entities = msg.caption_entities or []
+    caption = msg.caption or ""
+    if not entities:
+        return False
+    for ent in entities:
+        if ent.type == "mention":
+            # @username — extract from text
+            mentioned = caption[ent.offset:ent.offset + ent.length]  # like "@SomeUser"
+            if mentioned.lstrip("@").lower() != (bot_username or "").lower():
+                return True
+        elif ent.type == "text_mention":
+            # User object embedded in entity (no @ prefix)
+            if ent.user and not ent.user.is_bot:
+                return True
+            if ent.user and ent.user.username and ent.user.username.lower() != (bot_username or "").lower():
+                return True
+    return False
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     caption = msg.caption or ""
@@ -258,6 +283,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_tag = f"{u.username or u.first_name or '?'}(id={u.id})"
     logger.info("[PHOTO-IN] user=%s chat=%s msg_id=%s media_group=%s caption=%r",
                 user_tag, chat_id, msg.message_id, media_group_id, caption)
+
+    # In group: skip the photo if caption tags another user (not the bot).
+    # Process only when no tag, OR caption tags the bot itself.
+    is_group = msg.chat.type in ("group", "supergroup")
+    if is_group:
+        bot_username = (await context.bot.get_me()).username or ""
+        # If THIS message's caption tags other user → mark album to skip (or skip directly)
+        tags_other = _caption_tags_other_user(msg, bot_username)
+        if tags_other:
+            if media_group_id:
+                media_group_skip.add(media_group_id)
+            logger.info("[PHOTO-SKIP] user=%s chat=%s caption tags other user — bot không xử lý",
+                        user_tag, chat_id)
+            return
+        # If part of an album that another photo in the album already marked → skip
+        if media_group_id and media_group_id in media_group_skip:
+            logger.info("[PHOTO-SKIP] user=%s chat=%s media_group=%s already marked skip",
+                        user_tag, chat_id, media_group_id)
+            return
 
     # Handle media group (album): share caption across all photos in group
     if media_group_id:
@@ -303,6 +347,16 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if media_group_id:
             # Wait 3s for all photos in album to arrive + caption to be set
             await asyncio.sleep(3)
+            # Re-check skip flag: another photo in the same album might have tagged
+            # another user and arrived after this one
+            if media_group_id in media_group_skip:
+                logger.info("[PHOTO-SKIP] chat=%s media_group=%s skipped post-wait (album tagged other user)",
+                            chat_id, media_group_id)
+                try:
+                    await progress.delete()
+                except Exception:
+                    pass
+                return
             group_caption = media_group_captions.get(media_group_id, "")
             await _process_photo_entry(msg, chat_id, ocr, image_url, group_caption, progress)
             return
@@ -466,11 +520,22 @@ def _has_amount(text: str) -> bool:
 
 
 def _has_keyword(text: str) -> bool:
-    """Check if text has accounting keywords."""
+    """Check if text has accounting keywords (word-boundary match for short kw
+    to avoid false positives like 'click' matching 'ck', 'thấy' matching 'thu')."""
     lower = text.lower()
     from unidecode import unidecode
     ascii_lower = unidecode(lower)
-    return any(kw in ascii_lower or kw in lower for kw in ACCOUNTING_KEYWORDS)
+    for kw in ACCOUNTING_KEYWORDS:
+        if " " in kw:
+            # Multi-word phrases (e.g., "van phong"): plain substring match
+            if kw in ascii_lower or kw in lower:
+                return True
+        else:
+            # Single short word: enforce word boundary
+            pat = rf'\b{re.escape(kw)}\b'
+            if re.search(pat, ascii_lower) or re.search(pat, lower):
+                return True
+    return False
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -499,6 +564,14 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Remove bot tag from text
         if is_tagged:
             text = text.replace(f"@{bot_username}", "").strip()
+
+    # Even after group filter passes (tagged/reply-to-bot or in DM):
+    # if text has neither an amount NOR an accounting keyword, it's likely
+    # casual chat (e.g. user replied to bot card with a comment). Don't try
+    # to interpret as an entry — silently ignore.
+    if not _has_amount(text) and not _has_keyword(text):
+        logger.info("[TEXT-IGNORE] chat=%s no amount + no keyword: %r", chat_id, text[:80])
+        return
 
     amount, noi_dung = _extract_amount_from_text(text)
     mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="", user_note=noi_dung)
