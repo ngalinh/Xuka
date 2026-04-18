@@ -547,7 +547,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return  # Skip commands
 
     # In group: only process if tagged or replying to bot
-    # Skip if text has BOTH amount AND keyword (likely user-to-user chat about transactions)
     is_group = msg.chat.type in ("group", "supergroup")
     if is_group:
         bot_username = (await context.bot.get_me()).username
@@ -558,19 +557,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not is_tagged and not is_reply_to_bot:
             # Skip all group chat unless explicitly addressed
             return
-        # Skip if text has both amount AND keyword (user discussion, not command)
-        if _has_amount(text) and _has_keyword(text):
-            return
-        # Remove bot tag from text
+        # Remove bot tag from text BEFORE keyword/amount check
         if is_tagged:
             text = text.replace(f"@{bot_username}", "").strip()
 
-    # Even after group filter passes (tagged/reply-to-bot or in DM):
-    # if text has neither an amount NOR an accounting keyword, it's likely
-    # casual chat (e.g. user replied to bot card with a comment). Don't try
-    # to interpret as an entry — silently ignore.
-    if not _has_amount(text) and not _has_keyword(text):
-        logger.info("[TEXT-IGNORE] chat=%s no amount + no keyword: %r", chat_id, text[:80])
+    # Required for text entries (in group or DM): must have BOTH amount AND
+    # an accounting keyword. Otherwise silently ignore — don't ask the user
+    # for amount.
+    if not (_has_amount(text) and _has_keyword(text)):
+        logger.info("[TEXT-IGNORE] chat=%s missing amount or keyword: %r",
+                    chat_id, text[:80])
         return
 
     amount, noi_dung = _extract_amount_from_text(text)
@@ -609,69 +605,16 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         entry["mapping"]["danh_muc"] = "CHI - Checkout zelle"
         entry["mapping"]["confidence"] = 95
 
+    # amount is guaranteed > 0 by the _has_amount check above; if extraction
+    # failed for some reason, silently skip rather than prompt.
     if amount == 0:
-        await msg.reply_text("💰 Nhập số tiền (VD: `5tr`, `500k`, `5000000`):", parse_mode="Markdown")
-        import time as _time
-        context.user_data["pending_entry"] = entry
-        context.user_data["pending_entry_at"] = _time.time()
+        logger.warning("[TEXT-IGNORE] passed _has_amount but extracted 0 from %r", text)
         return
 
     eid = _store_entry(chat_id, entry)
     text_card = _build_card_text(entry)
     kb = _build_card_buttons(eid, entry.get("is_zelle", False))
     await msg.reply_text(text_card, parse_mode="Markdown", reply_markup=kb)
-
-
-# ===== Amount Input (follow-up) =====
-
-PENDING_ENTRY_TTL = 300  # 5 minutes
-
-
-async def handle_amount_followup(update: Update, context: ContextTypes.DEFAULT_TYPE, bot_username: str = ""):
-    """Handle amount input when previous text had no amount.
-    Returns True if the message was consumed, False to fall through to normal text handling.
-    """
-    if "pending_entry" not in context.user_data:
-        return False
-
-    import time as _time
-    msg = update.message
-    text = msg.text.strip()
-
-    # Expire stale pending_entry (TTL 5 min)
-    started_at = context.user_data.get("pending_entry_at", 0)
-    if _time.time() - started_at > PENDING_ENTRY_TTL:
-        context.user_data.pop("pending_entry", None)
-        context.user_data.pop("pending_entry_at", None)
-        logger.info("[PENDING-EXPIRED] chat=%s — pending_entry dropped (>%ds)",
-                    msg.chat_id, PENDING_ENTRY_TTL)
-        return False  # Fall through to normal handler
-
-    # In group chat, only consume the message if user tags bot OR replies to bot.
-    # Otherwise this could be unrelated chatter between users.
-    is_group = msg.chat.type in ("group", "supergroup")
-    if is_group and bot_username:
-        is_tagged = f"@{bot_username}" in text
-        is_reply_to_bot = (msg.reply_to_message and
-                           msg.reply_to_message.from_user and
-                           msg.reply_to_message.from_user.is_bot)
-        if not is_tagged and not is_reply_to_bot:
-            return False  # Ignore - not addressed to bot
-
-    amount = _parse_amount(text)
-    if not amount:
-        await msg.reply_text("❌ Số tiền không hợp lệ. VD: `5tr`, `500k`, `5000000`", parse_mode="Markdown")
-        return True
-
-    entry = context.user_data.pop("pending_entry")
-    context.user_data.pop("pending_entry_at", None)
-    entry["ocr"]["so_tien"] = amount
-
-    eid = _store_entry(msg.chat_id, entry)
-    text_card = _build_card_text(entry)
-    kb = _build_card_buttons(eid, entry.get("is_zelle", False))
-    await msg.reply_text(text_card, parse_mode="Markdown", reply_markup=kb)
-    return True
 
 
 # ===== Callback Handlers =====
@@ -1063,7 +1006,7 @@ async def handle_edit_noi_dung(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Route text messages: pending photo > edit noi_dung > pending amount > normal text."""
+    """Route text messages: pending photo > edit noi_dung > normal text."""
     msg = update.message
     chat_id = msg.chat_id
     text = msg.text.strip() if msg.text else ""
@@ -1084,11 +1027,6 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if await handle_edit_noi_dung(update, context):
         return
-    if "pending_entry" in context.user_data:
-        bot_username = (await context.bot.get_me()).username or ""
-        handled = await handle_amount_followup(update, context, bot_username=bot_username)
-        if handled:
-            return
     await handle_text(update, context)
 
 
