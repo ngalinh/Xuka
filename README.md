@@ -12,7 +12,6 @@ Bot Telegram đọc screenshot chuyển khoản (Claude Vision OCR), tự độn
 - **Media group (album)**: Gửi nhiều ảnh cùng caption → chia sẻ caption cho cả album.
 - **Group chat**: Tự lọc tin user-to-user, chỉ xử lý khi tag bot hoặc reply.
 - **Xóa giao dịch**: Nút xóa trong vòng 2 phút sau khi lưu.
-- **Chấm công** (`/chamcong`): Form chọn Chi nhánh / Nhân viên / Danh mục / Thời gian / Ghi chú từ inline buttons → ghi vào sheet `Chấm công` (file Google Sheet riêng — config qua `CHAM_CONG_SPREADSHEET_URL`).
 
 ## Cài đặt
 
@@ -52,8 +51,6 @@ ANTHROPIC_API_KEY=<anthropic-key>
 GOOGLE_CREDENTIALS_FILE=./credentials.json
 SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/.../edit
 SHEET_NAME=Thu Chi
-# Tùy chọn: file Google Sheet riêng cho sheet "Chấm công"
-CHAM_CONG_SPREADSHEET_URL=https://docs.google.com/spreadsheets/d/.../edit
 ```
 
 ### 6. Cấu trúc Google Sheet

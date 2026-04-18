@@ -21,13 +21,6 @@ from xuka.services.sheets import (
     append_entries, append_zelle_entry,
     get_unique_nganh_nghe, get_unique_danh_muc, get_unique_pttt,
 )
-from xuka.services.cham_cong import (
-    get_chi_nhanh as cc_get_chi_nhanh,
-    get_nhan_vien as cc_get_nhan_vien,
-    get_danh_muc as cc_get_danh_muc,
-    get_thoi_gian as cc_get_thoi_gian,
-    append_cham_cong, delete_cham_cong,
-)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -44,10 +37,6 @@ pending_photos: dict[int, dict] = {}
 media_group_captions: dict[str, str] = {}
 # Media groups marked to skip (any photo's caption tagged another user)
 media_group_skip: set[str] = set()
-# Chấm công sessions: cc_id → {chi_nhanh, nhan_vien, danh_muc, thoi_gian, ghi_chu, started_by}
-cham_cong_sessions: dict[str, dict] = {}
-# Saved Chấm công entries (for undo): cc_id → {fields, saved_at}
-cham_cong_saved: dict[str, dict] = {}
 
 
 # ===== Helpers =====
@@ -202,19 +191,14 @@ def _build_card_buttons(eid: str, is_zelle: bool = False) -> InlineKeyboardMarku
 # ===== Command Handlers =====
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🕐 Chấm công", callback_data="cc_start")
-    ]])
     await update.message.reply_text(
         "Xin chào! Tôi là *Xuka kế toán* 📊\n\n"
         "Gửi tôi:\n"
         "📸 *Ảnh chuyển khoản* → tự đọc + mapping\n"
         "✍️ *Text* VD: `Chi tool order 5tr` → tạo entry\n"
         "📸 + caption `Mua $116 zelle` → nhập Lãi tỉ giá\n\n"
-        "🕐 *Chấm công*: bấm nút bên dưới hoặc gõ `/chamcong`\n\n"
         "Tôi sẽ tự mapping với lịch sử. Sai thì bấm Sửa!",
         parse_mode="Markdown",
-        reply_markup=kb,
     )
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -258,390 +242,11 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*💡 Muốn bot tạo entry từ text trong group?*\n"
         "→ Tag bot: `@Asale_xukabot chi van phong`\n"
         "→ Hoặc gửi trực tiếp cho bot (DM)\n\n"
-        "*━━━━━━━━━━━━━━━━━━━━*\n"
-        "*🕐 CHẤM CÔNG*\n"
-        "*━━━━━━━━━━━━━━━━━━━━*\n\n"
-        "Gõ `/chamcong` (hoặc bấm nút khi vào /start)\n"
-        "Bot sẽ hỏi từng bước:\n"
-        "1. Chi nhánh (Sài Gòn / Hà Nội)\n"
-        "2. Nhân viên\n"
-        "3. Danh mục (Đi làm muộn / WFH / Nghỉ phép...)\n"
-        "4. Thời gian (1 ngày / Nửa ngày / 1 giờ...)\n"
-        "5. Ghi chú (tùy chọn)\n"
-        "→ Bấm ✅ Lưu để ghi vào sheet *Chấm công*\n\n"
         "*⚙️ LỆNH*\n"
         "/start - Khởi động bot\n"
-        "/help - Hướng dẫn này\n"
-        "/chamcong - Mở form chấm công"
+        "/help - Hướng dẫn này"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
-
-
-# ===== Chấm công flow =====
-
-CC_PAGE_SIZE = 8  # buttons per "page" for long lists (e.g. employee names)
-
-
-def _cc_short_id() -> str:
-    """Short id used as key in cham_cong_sessions."""
-    return uuid.uuid4().hex[:8]
-
-
-def _cc_steps_done(s: dict) -> str:
-    """Compact one-line summary of the choices made so far."""
-    parts = []
-    if s.get("chi_nhanh"):
-        parts.append(f"🏢 {s['chi_nhanh']}")
-    if s.get("nhan_vien"):
-        parts.append(f"👤 {s['nhan_vien']}")
-    if s.get("danh_muc"):
-        parts.append(f"📂 {s['danh_muc']}")
-    if s.get("thoi_gian"):
-        parts.append(f"⏱ {s['thoi_gian']}")
-    if s.get("ghi_chu"):
-        parts.append(f"📝 {s['ghi_chu']}")
-    return "\n".join(parts) if parts else "_(chưa chọn gì)_"
-
-
-def _cc_grid_keyboard(items: list[str], cc_id: str, prefix: str, per_row: int = 2,
-                      extra_rows: list | None = None) -> InlineKeyboardMarkup:
-    """Build a grid keyboard with one button per item.
-    Buttons encode the index, not the value, to stay under the 64-byte cb limit.
-    """
-    buttons = []
-    row: list = []
-    for i, item in enumerate(items):
-        row.append(InlineKeyboardButton(item, callback_data=f"{prefix}_{cc_id}_{i}"))
-        if len(row) == per_row:
-            buttons.append(row)
-            row = []
-    if row:
-        buttons.append(row)
-    if extra_rows:
-        buttons.extend(extra_rows)
-    return InlineKeyboardMarkup(buttons)
-
-
-async def _cc_show_step(query_or_msg, cc_id: str, step: str, edit: bool = False):
-    """Render the prompt for the current step."""
-    s = cham_cong_sessions.get(cc_id)
-    if not s:
-        if hasattr(query_or_msg, "edit_message_text"):
-            await query_or_msg.edit_message_text("⚠️ Phiên chấm công đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-        else:
-            await query_or_msg.reply_text("⚠️ Phiên chấm công đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-        return
-
-    header = f"🕐 *Chấm công*\n{_cc_steps_done(s)}\n"
-    cancel_row = [InlineKeyboardButton("❌ Hủy", callback_data=f"cc_cancel_{cc_id}")]
-
-    if step == "chi_nhanh":
-        items = cc_get_chi_nhanh()
-        text = header + "\nChọn *Chi nhánh*:"
-        kb = _cc_grid_keyboard(items, cc_id, "cc_cn", per_row=2,
-                               extra_rows=[cancel_row])
-    elif step == "nhan_vien":
-        items = cc_get_nhan_vien()
-        text = header + "\nChọn *Nhân viên*:"
-        back_row = [
-            InlineKeyboardButton("⬅️ Quay lại", callback_data=f"cc_back_{cc_id}_chi_nhanh"),
-            InlineKeyboardButton("❌ Hủy", callback_data=f"cc_cancel_{cc_id}"),
-        ]
-        kb = _cc_grid_keyboard(items, cc_id, "cc_nv", per_row=3,
-                               extra_rows=[back_row])
-    elif step == "danh_muc":
-        items = cc_get_danh_muc()
-        text = header + "\nChọn *Danh mục*:"
-        back_row = [
-            InlineKeyboardButton("⬅️ Quay lại", callback_data=f"cc_back_{cc_id}_nhan_vien"),
-            InlineKeyboardButton("❌ Hủy", callback_data=f"cc_cancel_{cc_id}"),
-        ]
-        kb = _cc_grid_keyboard(items, cc_id, "cc_dm", per_row=1,
-                               extra_rows=[back_row])
-    elif step == "thoi_gian":
-        items = cc_get_thoi_gian()
-        text = header + "\nChọn *Thời gian*:"
-        back_row = [
-            InlineKeyboardButton("⬅️ Quay lại", callback_data=f"cc_back_{cc_id}_danh_muc"),
-            InlineKeyboardButton("❌ Hủy", callback_data=f"cc_cancel_{cc_id}"),
-        ]
-        kb = _cc_grid_keyboard(items, cc_id, "cc_tg", per_row=2,
-                               extra_rows=[back_row])
-    elif step == "confirm":
-        from xuka.services.cham_cong import _format_thang, _format_date_label, VN_TZ as CC_VN_TZ
-        now = datetime.now(CC_VN_TZ)
-        text = (
-            "🕐 *Xác nhận chấm công*\n"
-            f"📅 {_format_thang(now)} — {_format_date_label(now)}\n"
-            f"🏢 Chi nhánh: *{s['chi_nhanh']}*\n"
-            f"👤 Nhân viên: *{s['nhan_vien']}*\n"
-            f"📂 Danh mục: *{s['danh_muc']}*\n"
-            f"⏱ Thời gian: *{s['thoi_gian']}*\n"
-            f"📝 Ghi chú: {s.get('ghi_chu') or '_(không có)_'}"
-        )
-        kb = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("✅ Lưu", callback_data=f"cc_save_{cc_id}"),
-                InlineKeyboardButton("📝 Ghi chú", callback_data=f"cc_note_{cc_id}"),
-            ],
-            [
-                InlineKeyboardButton("⬅️ Sửa thời gian", callback_data=f"cc_back_{cc_id}_thoi_gian"),
-                InlineKeyboardButton("❌ Hủy", callback_data=f"cc_cancel_{cc_id}"),
-            ],
-        ])
-    else:
-        return
-
-    if edit and hasattr(query_or_msg, "edit_message_text"):
-        try:
-            await query_or_msg.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
-            return
-        except Exception:
-            pass
-    # New message
-    target = query_or_msg.message if hasattr(query_or_msg, "message") else query_or_msg
-    await target.reply_text(text, parse_mode="Markdown", reply_markup=kb)
-
-
-async def cmd_chamcong(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cc_id = _cc_short_id()
-    cham_cong_sessions[cc_id] = {
-        "started_by": update.effective_user.id,
-        "started_at": datetime.now(VN_TZ).timestamp(),
-        "chat_id": update.effective_chat.id,
-    }
-    logger.info("[CC-START] user=%s chat=%s cc_id=%s",
-                update.effective_user.username or update.effective_user.id,
-                update.effective_chat.id, cc_id)
-    await _cc_show_step(update.message, cc_id, "chi_nhanh")
-
-
-async def _cc_callback(query, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Handle all cc_* callbacks. Return True if consumed."""
-    data = query.data
-    if not data.startswith("cc_"):
-        return False
-
-    # cc_start: from inline button on /start
-    if data == "cc_start":
-        cc_id = _cc_short_id()
-        cham_cong_sessions[cc_id] = {
-            "started_by": query.from_user.id,
-            "started_at": datetime.now(VN_TZ).timestamp(),
-            "chat_id": query.message.chat_id,
-        }
-        logger.info("[CC-START] user=%s chat=%s cc_id=%s (via button)",
-                    query.from_user.username or query.from_user.id,
-                    query.message.chat_id, cc_id)
-        await _cc_show_step(query, cc_id, "chi_nhanh", edit=False)
-        return True
-
-    # cc_cancel_<id>
-    if data.startswith("cc_cancel_"):
-        cc_id = data[len("cc_cancel_"):]
-        cham_cong_sessions.pop(cc_id, None)
-        # Clear note-pending state if any
-        if context.user_data.get("cc_pending_note") == cc_id:
-            context.user_data.pop("cc_pending_note", None)
-        logger.info("[CC-CANCEL] cc_id=%s user=%s", cc_id, query.from_user.username or query.from_user.id)
-        try:
-            await query.edit_message_text("❌ Đã hủy chấm công.")
-        except Exception:
-            pass
-        return True
-
-    # cc_back_<id>_<step>
-    if data.startswith("cc_back_"):
-        rest = data[len("cc_back_"):]
-        cc_id, _, step = rest.partition("_")
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        # Clear fields after the target step
-        order = ["chi_nhanh", "nhan_vien", "danh_muc", "thoi_gian"]
-        if step in order:
-            idx = order.index(step)
-            for f in order[idx:]:
-                s.pop(f, None)
-        await _cc_show_step(query, cc_id, step, edit=True)
-        return True
-
-    # cc_cn_<id>_<idx>: choose chi nhánh
-    if data.startswith("cc_cn_"):
-        rest = data[len("cc_cn_"):]
-        cc_id, _, idx_s = rest.rpartition("_")
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        items = cc_get_chi_nhanh()
-        try:
-            s["chi_nhanh"] = items[int(idx_s)]
-        except (ValueError, IndexError):
-            return True
-        logger.info("[CC-PICK] cc_id=%s chi_nhanh=%r", cc_id, s["chi_nhanh"])
-        await _cc_show_step(query, cc_id, "nhan_vien", edit=True)
-        return True
-
-    # cc_nv_<id>_<idx>: choose nhân viên
-    if data.startswith("cc_nv_"):
-        rest = data[len("cc_nv_"):]
-        cc_id, _, idx_s = rest.rpartition("_")
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        items = cc_get_nhan_vien()
-        try:
-            s["nhan_vien"] = items[int(idx_s)]
-        except (ValueError, IndexError):
-            return True
-        logger.info("[CC-PICK] cc_id=%s nhan_vien=%r", cc_id, s["nhan_vien"])
-        await _cc_show_step(query, cc_id, "danh_muc", edit=True)
-        return True
-
-    # cc_dm_<id>_<idx>: choose danh mục
-    if data.startswith("cc_dm_"):
-        rest = data[len("cc_dm_"):]
-        cc_id, _, idx_s = rest.rpartition("_")
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        items = cc_get_danh_muc()
-        try:
-            s["danh_muc"] = items[int(idx_s)]
-        except (ValueError, IndexError):
-            return True
-        logger.info("[CC-PICK] cc_id=%s danh_muc=%r", cc_id, s["danh_muc"])
-        await _cc_show_step(query, cc_id, "thoi_gian", edit=True)
-        return True
-
-    # cc_tg_<id>_<idx>: choose thời gian
-    if data.startswith("cc_tg_"):
-        rest = data[len("cc_tg_"):]
-        cc_id, _, idx_s = rest.rpartition("_")
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        items = cc_get_thoi_gian()
-        try:
-            s["thoi_gian"] = items[int(idx_s)]
-        except (ValueError, IndexError):
-            return True
-        logger.info("[CC-PICK] cc_id=%s thoi_gian=%r", cc_id, s["thoi_gian"])
-        await _cc_show_step(query, cc_id, "confirm", edit=True)
-        return True
-
-    # cc_note_<id>: ask for ghi chú text
-    if data.startswith("cc_note_"):
-        cc_id = data[len("cc_note_"):]
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        context.user_data["cc_pending_note"] = cc_id
-        await query.message.reply_text(
-            "📝 Nhập ghi chú (gửi tin nhắn text tiếp theo):\n"
-            "_Hoặc bấm ❌ Hủy ở card trên để thoát._",
-            parse_mode="Markdown",
-        )
-        return True
-
-    # cc_save_<id>
-    if data.startswith("cc_save_"):
-        cc_id = data[len("cc_save_"):]
-        s = cham_cong_sessions.get(cc_id)
-        if not s:
-            await query.edit_message_text("⚠️ Phiên đã hết hạn. Gõ /chamcong để bắt đầu lại.")
-            return True
-        # Validate required fields
-        missing = [f for f in ("chi_nhanh", "nhan_vien", "danh_muc", "thoi_gian") if not s.get(f)]
-        if missing:
-            await query.message.reply_text(f"⚠️ Còn thiếu: {', '.join(missing)}")
-            return True
-        try:
-            saved = append_cham_cong(
-                chi_nhanh=s["chi_nhanh"],
-                nhan_vien=s["nhan_vien"],
-                danh_muc=s["danh_muc"],
-                thoi_gian=s["thoi_gian"],
-                ghi_chu=s.get("ghi_chu", ""),
-            )
-            cham_cong_saved[cc_id] = {**saved, "saved_at": datetime.now(VN_TZ).timestamp()}
-            cham_cong_sessions.pop(cc_id, None)
-            logger.info("[CC-SAVED] user=%s cc_id=%s | %s", query.from_user.username or query.from_user.id,
-                        cc_id, saved)
-            text_done = (
-                "✅ *Đã lưu chấm công!*\n"
-                f"📅 {saved['thang']} — {saved['ngay_label']}\n"
-                f"🏢 {saved['chi_nhanh']} | 👤 {saved['nhan_vien']}\n"
-                f"📂 {saved['danh_muc']} | ⏱ {saved['thoi_gian']}"
-                + (f"\n📝 {saved['ghi_chu']}" if saved.get('ghi_chu') else "")
-            )
-            del_kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🗑 Xóa giao dịch", callback_data=f"cc_del_{cc_id}")
-            ]])
-            await query.edit_message_text(text_done, parse_mode="Markdown", reply_markup=del_kb)
-            asyncio.create_task(_cc_remove_del_button(query, cc_id, text_done))
-        except Exception as e:
-            logger.error("[CC-SAVE-ERR] cc_id=%s err=%s", cc_id, e)
-            await query.edit_message_text(f"❌ Lỗi lưu: {e}")
-        return True
-
-    # cc_del_<id>: delete saved row
-    if data.startswith("cc_del_"):
-        import time as _time
-        cc_id = data[len("cc_del_"):]
-        info = cham_cong_saved.get(cc_id)
-        if not info:
-            await query.edit_message_text("⚠️ Quá thời gian xóa (2 phút).")
-            return True
-        if _time.time() - info["saved_at"] > 120:
-            cham_cong_saved.pop(cc_id, None)
-            await query.edit_message_text("⚠️ Quá thời gian xóa (2 phút).")
-            return True
-        try:
-            ok = delete_cham_cong(info)
-            cham_cong_saved.pop(cc_id, None)
-            if ok:
-                logger.info("[CC-DELETED] user=%s cc_id=%s", query.from_user.username or query.from_user.id, cc_id)
-                await query.edit_message_text("🗑 Đã xóa chấm công khỏi sheet.")
-            else:
-                await query.edit_message_text("⚠️ Không tìm thấy dòng để xóa.")
-        except Exception as e:
-            logger.error("[CC-DEL-ERR] cc_id=%s err=%s", cc_id, e)
-            await query.message.reply_text(f"❌ Lỗi xóa: {e}")
-        return True
-
-    return False
-
-
-async def _cc_remove_del_button(query, cc_id: str, text: str):
-    await asyncio.sleep(120)
-    if cc_id in cham_cong_saved:
-        try:
-            await query.edit_message_reply_markup(reply_markup=None)
-        except Exception as e:
-            logger.warning("[CC] Remove del button failed: %s", e)
-        cham_cong_saved.pop(cc_id, None)
-
-
-async def handle_cc_note_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Capture text as ghi chú when user is in cc_pending_note state."""
-    if "cc_pending_note" not in context.user_data:
-        return False
-    cc_id = context.user_data.pop("cc_pending_note")
-    s = cham_cong_sessions.get(cc_id)
-    if not s:
-        return False  # silent fall-through (session expired)
-    msg = update.message
-    s["ghi_chu"] = (msg.text or "").strip()
-    logger.info("[CC-NOTE] cc_id=%s ghi_chu=%r", cc_id, s["ghi_chu"])
-    await _cc_show_step(msg, cc_id, "confirm", edit=False)
-    return True
 
 
 # ===== Photo Handler =====
@@ -1040,11 +645,6 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = query.message.chat_id
     user_tag = _user_tag(query)
 
-    # Chấm công flow (handles all cc_* callbacks)
-    if data == "cc_start" or data.startswith("cc_"):
-        if await _cc_callback(query, context):
-            return
-
     # Save
     if data.startswith("save_"):
         eid = data[5:]
@@ -1425,8 +1025,6 @@ async def text_router(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _process_photo_entry(original_msg, chat_id, ocr, image_url, text, progress)
         return
 
-    if await handle_cc_note_input(update, context):
-        return
     if await handle_edit_noi_dung(update, context):
         return
     await handle_text(update, context)
@@ -1443,7 +1041,6 @@ def main():
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
-    app.add_handler(CommandHandler("chamcong", cmd_chamcong))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_router))
     app.add_handler(CallbackQueryHandler(callback_handler))
