@@ -42,19 +42,54 @@ QUAN TRỌNG về Loại tiền (USD vs VND):
 - Nếu số tiền có format X,XXX.XX (dấu chấm thập phân 2 số) và có $ → USD
 - Nếu số tiền có format X,XXX,XXX hoặc X.XXX.XXX không thập phân → VND
 
-QUAN TRỌNG về NGƯỜI NHẬN (ten_nguoi_nhan):
-- Người nhận = người/tài khoản NHẬN TIỀN, thường đi kèm số tài khoản đích và tên ngân hàng đích
-- TUYỆT ĐỐI KHÔNG lấy tên từ memo / nội dung chuyển khoản. Memo thường có dạng "NGUYEN VAN A chuyen tien" — đây là NGƯỜI GỬI chứ không phải người nhận
-- Trong app MB: layout thường là [Tên người nhận] → [Ngân hàng đích + Số TK] → [Nội dung memo]
-- Nếu không chắc chắn đâu là người nhận, lấy tên đứng gần số tài khoản đích nhất
-- Bỏ qua tên nào xuất hiện trong dòng có chữ "chuyen tien", "ck", "chuyển tiền", "thanh toan"
+QUAN TRỌNG về NGƯỜI NHẬN (ten_nguoi_nhan) — ĐỌC KỸ:
+
+QUY TẮC VÀNG: Người nhận là tên người **gắn liền với số tài khoản đích** (số tài khoản nhận tiền). KHÔNG BAO GIỜ lấy tên từ dòng memo/nội dung chuyển khoản.
+
+DẤU HIỆU NHẬN BIẾT TÊN TRONG MEMO (KHÔNG được lấy):
+- Tên đứng cùng dòng/đoạn có các từ: "chuyen tien", "chuyển tiền", "ck", "ck cho", "thanh toan", "thanh toan ho", "tt", "chuyển khoản"
+- VD: "NGUYEN VAN A chuyen tien" → A là NGƯỜI GỬI, KHÔNG phải người nhận
+- VD: "ck Tran Thi B" → B có thể là người nhận thật, nhưng đây vẫn là memo, ưu tiên lấy tên gắn với số TK đích
+
+LAYOUT MB BANK CHUẨN (đọc từ trên xuống):
+  ✓ Chuyển tiền thành công
+  [SỐ TIỀN]
+  [Ngày giờ]
+       ↓
+  [TÊN NGƯỜI NHẬN]            ← LẤY DÒNG NÀY
+  [Logo + Tên ngân hàng đích]
+  [Số tài khoản đích]
+  [Memo: "TÊN NGƯỜI GỬI chuyen tien"]   ← KHÔNG LẤY DÒNG NÀY
+
+VÍ DỤ THỰC TẾ:
+Ảnh hiển thị:
+  ✓ Chuyển tiền thành công
+  6,600,000 VND
+  11:15 - 20/04/2026
+  ↓
+  DINH NGAN NHAT
+  MBBank (MB)
+  0702499996
+  NGUYEN THI PHUONG chuyen tien
+
+→ ĐÚNG: ten_nguoi_nhan = "DINH NGAN NHAT" (đứng ngay trên STK)
+→ SAI: ten_nguoi_nhan = "NGUYEN THI PHUONG" (đây là tên trong memo!)
+
+LAYOUT KHÁC (Techcombank, VCB, VPBank...):
+- Thường có nhãn rõ ràng: "Người nhận:", "Tên người nhận:", "Đến tài khoản:", "To:", "Recipient:"
+- Lấy tên có nhãn rõ ràng. Nếu nhiều tên → lấy tên không nằm trong memo
+
+DOUBLE CHECK trước khi trả về:
+1. Tên bạn chọn có nằm trong dòng có "chuyen tien"/"ck"/"thanh toan" không? → Nếu CÓ, chọn lại
+2. Tên bạn chọn có gắn với số tài khoản đích không? → Nếu KHÔNG, chọn lại
+3. Nếu không có nhãn rõ ràng và không có STK gần đó → ưu tiên tên ở phần trên (gần số tiền) hơn tên ở phần dưới (memo)
 
 Extract chính xác và trả về JSON:
 {
   "is_transfer": true,
   "so_tien_vnd": <số tiền VND nếu có, số nguyên không dấu phẩy. Nếu chỉ có USD thì để 0>,
   "so_tien_usd": <số tiền USD nếu có, dạng số thực VD 528.96. Nếu không có thì để 0>,
-  "ten_nguoi_nhan": "<tên người NHẬN TIỀN đầy đủ, viết hoa - VD: NGUYEN VAN A. Phải là tên gắn với số TK đích, KHÔNG phải tên trong memo. Nếu là app Mỹ thì lấy TO field>",
+  "ten_nguoi_nhan": "<TÊN GẮN VỚI SỐ TÀI KHOẢN ĐÍCH, viết hoa đầy đủ - VD: DINH NGAN NHAT. KHÔNG bao giờ lấy tên trong dòng memo có 'chuyen tien'/'ck'/'thanh toan'. Nếu là app Mỹ thì lấy TO field>",
   "ngan_hang": "<tên ngân hàng/app: MB/VPBank/TCB/Zelle/Cash App/PayPal/Wise...>",
   "ngay": "<ngày giao dịch dạng DD/MM/YYYY. Nếu thấy 'Today' thì để chuỗi rỗng>",
   "noi_dung_ck": "<nội dung chuyển khoản / memo / confirmation code - giữ nguyên văn>",
