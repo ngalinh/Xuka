@@ -19,14 +19,27 @@ BANK_PTTT_MAP = {
 KEYWORD_MAP = [
     (["ship", "van chuyen", "vận chuyển", "giao hang"], "ORDER CHECKOUT", "CHI - Vận chuyển nội địa"),
     (["checkout", "thanh toan ho", "ck ho"], "ORDER CHECKOUT", "CHI - Checkout hộ"),
-    (["tool order", "tool", "api"], "CÔNG TY", "CHI - Tool order"),
+    (["claude", "claude pro", "openai", "chatgpt", "gpt", "tool order", "tool", "api"], "CÔNG TY", "CHI - Tool order"),
     (["website", "hosting", "domain", "code"], "CÔNG TY", "CHI - Website"),
     (["luong", "lương", "nv", "nhan vien"], "CÔNG TY", "CHI - Tiền lương NV"),
     (["van phong", "văn phòng", "internet", "dien"], "CÔNG TY", "CHI - Văn Phòng"),
     (["dropship", "nhap hang"], "HÀNG STOCK DROPSHIP", "CHI - Nhập hàng dropship"),
     (["stock", "hang stock"], "HÀNG STOCK DROPSHIP", "CHI - Nhập hàng stock"),
-    (["tra lai", "hoan tien", "hoàn tiền", "thu"], "CÔNG TY", "THU - Khoản thu khác"),
+    (["tra lai", "hoan tien", "hoàn tiền"], "CÔNG TY", "THU - Khoản thu khác"),
 ]
+
+
+def _matches_loai(danh_muc: str, loai: str) -> bool:
+    """Check if a danh_muc matches the expected direction (chi/thu).
+    Empty danh_muc passes (don't reject because no info)."""
+    if not danh_muc:
+        return True
+    dm_upper = danh_muc.upper().strip()
+    if loai == "chi":
+        return not dm_upper.startswith("THU")
+    if loai == "thu":
+        return not dm_upper.startswith("CHI")
+    return True
 
 
 @dataclass
@@ -43,8 +56,13 @@ def map_entry(
     noi_dung: str,
     ngan_hang: str,
     user_note: str | None = None,
+    loai: str = "chi",
 ) -> MappingResult:
-    """Map giao dịch → Ngành nghề, Danh mục, PTTT. Priority: memory > recipient > text > heuristic."""
+    """Map giao dịch → Ngành nghề, Danh mục, PTTT. Priority: memory > recipient > text > heuristic.
+
+    loai ('chi' or 'thu') filters out wrong-direction matches — e.g. a chi
+    transaction will not be assigned a 'THU - ...' danh_muc from history.
+    """
 
     nn = ""
     dm = ""
@@ -57,30 +75,50 @@ def map_entry(
     if noi_dung:
         hist = find_mapping(noi_dung)
         if hist:
-            nn, dm, pt = hist
-            confidence = 90
-            source = "history_text"
-            logger.info("Text history match: %s → %s/%s/%s", noi_dung, nn, dm, pt)
+            h_nn, h_dm, h_pt = hist
+            if _matches_loai(h_dm, loai):
+                nn, dm, pt = h_nn, h_dm, h_pt
+                confidence = 90
+                source = "history_text"
+                logger.info("Text history match: %s → %s/%s/%s", noi_dung, nn, dm, pt)
+            else:
+                logger.info("Text history match REJECTED (loai=%s but dm=%r): %s",
+                            loai, h_dm, noi_dung)
+                # Keep PTTT from history even if dm direction is wrong
+                pt = h_pt
 
     # 2. Bot Memory (by normalized recipient name)
     if not nn:
         mem = memory_lookup(nguoi_nhan) if nguoi_nhan else None
         if mem and mem.get("nganh_nghe"):
-            nn = mem["nganh_nghe"]
-            dm = mem["danh_muc"]
-            pt = mem["pttt"]
-            confidence = min(95, 70 + mem.get("count", 1) * 5)
-            source = "memory"
-            logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
+            m_dm = mem.get("danh_muc", "")
+            if _matches_loai(m_dm, loai):
+                nn = mem["nganh_nghe"]
+                dm = m_dm
+                pt = pt or mem.get("pttt", "")
+                confidence = min(95, 70 + mem.get("count", 1) * 5)
+                source = "memory"
+                logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
+            else:
+                logger.info("Memory match REJECTED (loai=%s but dm=%r): %s",
+                            loai, m_dm, nguoi_nhan)
+                pt = pt or mem.get("pttt", "")
 
     # 3. Sheet history by recipient name
     if not nn and nguoi_nhan:
         hist = find_by_recipient(nguoi_nhan)
         if hist:
-            nn, dm, pt = hist
-            confidence = 85
-            source = "history_recipient"
-            logger.info("Recipient history match: %s", nguoi_nhan)
+            h_nn, h_dm, h_pt = hist
+            if _matches_loai(h_dm, loai):
+                nn, dm = h_nn, h_dm
+                pt = pt or h_pt
+                confidence = 85
+                source = "history_recipient"
+                logger.info("Recipient history match: %s → %s/%s/%s", nguoi_nhan, nn, dm, pt)
+            else:
+                logger.info("Recipient history REJECTED (loai=%s but dm=%r): %s",
+                            loai, h_dm, nguoi_nhan)
+                pt = pt or h_pt
 
     # 4. Keyword inference (fallback)
     search_text = (user_note or "") + " " + (noi_dung or "")
@@ -89,6 +127,8 @@ def map_entry(
         from unidecode import unidecode
         search_ascii = unidecode(search_lower)
         for keywords, kw_nn, kw_dm in KEYWORD_MAP:
+            if not _matches_loai(kw_dm, loai):
+                continue  # skip THU keywords for chi transaction and vice versa
             if any(kw in search_ascii or kw in search_lower for kw in keywords):
                 if not nn:
                     nn = kw_nn

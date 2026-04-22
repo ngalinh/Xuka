@@ -401,7 +401,10 @@ async def _wait_for_caption(msg, chat_id: int, ocr, image_url: str, progress, co
 async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: str, progress):
     """Build and send card for a photo entry with given caption."""
     try:
-        loai = "Thu" if ocr.loai == "thu" else "Chi"
+        # All bank-transfer screenshots are treated as Chi (outgoing).
+        # User explicitly requested this — incoming money is rare; on the
+        # rare case they need Thu, they can edit the entry manually.
+        loai = "Chi"
         GENERIC_OCR = {"chuyen tien", "chuyển tiền", "ck", "tt", "thanh toan", "thanh toán", "noi dung", ""}
         ocr_nd_clean = (ocr.noi_dung or "").strip().lower()
 
@@ -422,6 +425,7 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
             noi_dung=noi_dung,
             ngan_hang=ocr.ngan_hang,
             user_note=caption,
+            loai="chi",
         )
         logger.info("Mapping: nn=%r, dm=%r, src=%r (noi_dung=%r)",
                     mapping.nganh_nghe, mapping.danh_muc, mapping.source, noi_dung)
@@ -570,8 +574,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     amount, noi_dung = _extract_amount_from_text(text)
-    mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="", user_note=noi_dung)
     loai = "Thu" if any(w in noi_dung.lower() for w in ["thu", "nhận", "hoàn"]) else "Chi"
+    mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="",
+                        user_note=noi_dung, loai=loai.lower())
     ngay = datetime.now(VN_TZ).strftime("%d/%m/%Y")
 
     entry = {
