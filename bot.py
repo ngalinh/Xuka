@@ -600,6 +600,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id, text[:80])
         return
 
+    # Zelle entries require a CK screenshot for the actual VND amount.
+    # Typed text like "Bán $1200 zelle" would otherwise be parsed as 1,200 ₫.
+    if "zelle" in text.lower():
+        logger.info("[TEXT-IGNORE] chat=%s zelle text without screenshot: %r",
+                    chat_id, text[:80])
+        return
+
     zelle = _detect_zelle(text)
     is_sell_zelle = bool(zelle and zelle.get("is_sell"))
 
