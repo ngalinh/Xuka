@@ -74,6 +74,9 @@ def _detect_zelle(note: str) -> dict | None:
         r'([\d,]+(?:\.\d+)?)\s*(k|K)\s*(?:usd|USD)',  # 5k usd
         r'([\d,]+(?:\.\d+)?)\s*(?:usd|USD)',       # 116 usd
     ]
+    # "bán zelle" / "ban zelle" → sell (Thu Chi). Default = mua (Lãi tỉ giá).
+    from unidecode import unidecode
+    is_sell = bool(re.search(r'\bban\b', unidecode(note).lower()))
     for pat in patterns:
         m = re.search(pat, note)
         if m:
@@ -83,7 +86,7 @@ def _detect_zelle(note: str) -> dict | None:
                 has_k = len(m.groups()) >= 2 and m.group(2) and m.group(2).lower() == "k"
                 if has_k:
                     val *= 1000
-                return {"usd": val}
+                return {"usd": val, "is_sell": is_sell}
             except (ValueError, IndexError):
                 continue
     return None
@@ -216,10 +219,10 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "`5tr` = `5 tr` = `5 triệu` = 5,000,000\n"
         "`500k` = 500,000\n"
         "`5,000,000` = 5,000,000\n\n"
-        "*💰 ZELLE (Lãi tỉ giá)*\n"
-        "Gửi ảnh CK + caption `Mua $XXX zelle`\n"
-        "VD: `Mua $5k zelle` → $5,000\n"
-        "→ Lưu vào sheet *Lãi tỉ giá*\n\n"
+        "*💰 ZELLE*\n"
+        "• `Mua $XXX zelle` → sheet *Lãi tỉ giá*\n"
+        "• `Bán $XXX zelle` → sheet *Thu Chi* (cột Thu, mapping theo lịch sử)\n"
+        "VD: `Mua $5k zelle` / `Bán $1200 zelle`\n\n"
         "*🌐 USD PAYMENT (Zelle, PayPal, Wise...)*\n"
         "Gửi ảnh screenshot có số $ → bot tự convert × 26,000\n"
         "→ Map: ORDER CHECKOUT / CHI - Vận chuyển quốc tế\n\n"
@@ -401,10 +404,14 @@ async def _wait_for_caption(msg, chat_id: int, ocr, image_url: str, progress, co
 async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: str, progress):
     """Build and send card for a photo entry with given caption."""
     try:
-        # All bank-transfer screenshots are treated as Chi (outgoing).
-        # User explicitly requested this — incoming money is rare; on the
-        # rare case they need Thu, they can edit the entry manually.
-        loai = "Chi"
+        # Detect zelle direction up front — sell (bán) routes to Thu Chi as
+        # income; buy (mua) routes to Lãi tỉ giá downstream.
+        zelle_info = _detect_zelle(caption) if caption else None
+        is_sell_zelle = bool(zelle_info and zelle_info.get("is_sell"))
+
+        # Sell zelle = customer pays VND into our account → Thu (income).
+        # Other bank-transfer screenshots default to Chi (outgoing).
+        loai = "Thu" if is_sell_zelle else "Chi"
         GENERIC_OCR = {"chuyen tien", "chuyển tiền", "ck", "tt", "thanh toan", "thanh toán", "noi dung", ""}
         ocr_nd_clean = (ocr.noi_dung or "").strip().lower()
 
@@ -413,6 +420,9 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
         if is_usd_payment and ocr.so_tien_usd > 0:
             base_note = caption if caption else "Thanh toán cước"
             noi_dung = f"{base_note} : ${ocr.so_tien_usd:g}"
+        elif is_sell_zelle:
+            # Keep caption as-is so history lookup matches "bán zelle" rows
+            noi_dung = caption
         elif caption and "zelle" not in caption.lower():
             noi_dung = caption
         elif ocr_nd_clean and ocr_nd_clean not in GENERIC_OCR:
@@ -425,7 +435,7 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
             noi_dung=noi_dung,
             ngan_hang=ocr.ngan_hang,
             user_note=caption,
-            loai="chi",
+            loai=loai.lower(),
         )
         logger.info("Mapping: nn=%r, dm=%r, src=%r (noi_dung=%r)",
                     mapping.nganh_nghe, mapping.danh_muc, mapping.source, noi_dung)
@@ -467,10 +477,20 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
                 entry["mapping"]["source"] = "usd_payment"
 
         # Zelle detection (from caption) - only if NOT already USD payment
-        if not is_usd_payment:
-            zelle = _detect_zelle(caption)
-            if zelle and ocr.so_tien > 0:
-                usd = zelle["usd"]
+        if not is_usd_payment and zelle_info and ocr.so_tien > 0:
+            if is_sell_zelle:
+                # Sell zelle → Thu Chi entry. Apply default mapping when
+                # history didn't yield one.
+                if not entry["mapping"]["nganh_nghe"]:
+                    entry["mapping"]["nganh_nghe"] = "CÔNG TY"
+                if not entry["mapping"]["danh_muc"]:
+                    entry["mapping"]["danh_muc"] = "THU - Khoản thu khác"
+                if entry["mapping"]["confidence"] < 60:
+                    entry["mapping"]["confidence"] = 60
+                    entry["mapping"]["source"] = "ban_zelle_default"
+            else:
+                # Buy zelle → Lãi tỉ giá entry
+                usd = zelle_info["usd"]
                 ti_gia = round(ocr.so_tien / usd) if usd > 0 else 0
                 entry["is_zelle"] = True
                 entry["zelle"] = {
@@ -573,10 +593,18 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     chat_id, text[:80])
         return
 
+    zelle = _detect_zelle(text)
+    is_sell_zelle = bool(zelle and zelle.get("is_sell"))
+
     amount, noi_dung = _extract_amount_from_text(text)
-    loai = "Thu" if any(w in noi_dung.lower() for w in ["thu", "nhận", "hoàn"]) else "Chi"
+    if is_sell_zelle:
+        loai = "Thu"
+        # Use full text so history lookup matches "bán zelle" rows
+        noi_dung = text
+    else:
+        loai = "Thu" if any(w in noi_dung.lower() for w in ["thu", "nhận", "hoàn"]) else "Chi"
     mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="",
-                        user_note=noi_dung, loai=loai.lower())
+                        user_note=text, loai=loai.lower())
     ngay = datetime.now(VN_TZ).strftime("%d/%m/%Y")
 
     entry = {
@@ -597,18 +625,25 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "loai": loai,
     }
 
-    # Zelle detection from text
-    zelle = _detect_zelle(text)
     if zelle and amount > 0:
-        usd = zelle["usd"]
-        entry["is_zelle"] = True
-        entry["zelle"] = {
-            "usd": usd, "ti_gia_mua": round(amount / usd) if usd > 0 else 0,
-            "total_ck": amount, "tai_khoan_nhan": "",
-        }
-        entry["mapping"]["nganh_nghe"] = "ORDER CHECKOUT"
-        entry["mapping"]["danh_muc"] = "CHI - Checkout zelle"
-        entry["mapping"]["confidence"] = 95
+        if is_sell_zelle:
+            if not entry["mapping"]["nganh_nghe"]:
+                entry["mapping"]["nganh_nghe"] = "CÔNG TY"
+            if not entry["mapping"]["danh_muc"]:
+                entry["mapping"]["danh_muc"] = "THU - Khoản thu khác"
+            if entry["mapping"]["confidence"] < 60:
+                entry["mapping"]["confidence"] = 60
+                entry["mapping"]["source"] = "ban_zelle_default"
+        else:
+            usd = zelle["usd"]
+            entry["is_zelle"] = True
+            entry["zelle"] = {
+                "usd": usd, "ti_gia_mua": round(amount / usd) if usd > 0 else 0,
+                "total_ck": amount, "tai_khoan_nhan": "",
+            }
+            entry["mapping"]["nganh_nghe"] = "ORDER CHECKOUT"
+            entry["mapping"]["danh_muc"] = "CHI - Checkout zelle"
+            entry["mapping"]["confidence"] = 95
 
     # amount is guaranteed > 0 by the _has_amount check above; if extraction
     # failed for some reason, silently skip rather than prompt.
