@@ -319,9 +319,15 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         user_tag, chat_id, media_group_id)
             return
 
-    # Strip @botname from caption so it doesn't leak into noi_dung / sheet
+    # Strip @botname (case-insensitive) so tag doesn't leak into noi_dung / sheet
     if caption and bot_username:
-        caption = caption.replace(f"@{bot_username}", "").strip()
+        caption = re.sub(
+            rf'@{re.escape(bot_username)}\b',
+            '',
+            caption,
+            flags=re.IGNORECASE,
+        )
+        caption = re.sub(r'\s+', ' ', caption).strip()
 
     # Handle media group (album): share caption across all photos in group
     if media_group_id:
