@@ -44,6 +44,12 @@ media_group_skip: set[str] = set()
 def _fmt(n: int) -> str:
     return f"{n:,}"
 
+def _md_esc(s: str) -> str:
+    """Escape Telegram (legacy) Markdown special chars in untrusted text."""
+    if not s:
+        return s
+    return re.sub(r'([_*`\[\]])', r'\\\1', s)
+
 def _parse_amount(text: str) -> int | None:
     cleaned = text.strip().lower()
     m = re.match(r'^([\d.,]+)\s*(tr|triệu|trieu)$', cleaned)
@@ -142,8 +148,8 @@ def _build_card_text(e: dict) -> str:
         z = e["zelle"]
         lines = [
             f"💵 *ZELLE → Lãi tỉ giá*",
-            f"📅 Ngày: {ocr['ngay']}",
-            f"👤 Tài khoản nhận: {ocr['nguoi_nhan'] or '—'}",
+            f"📅 Ngày: {_md_esc(ocr['ngay'])}",
+            f"👤 Tài khoản nhận: {_md_esc(ocr['nguoi_nhan']) or '—'}",
             f"💰 Total CK: *{_fmt(ocr['so_tien'])} ₫*",
             f"💵 USD: *${z['usd']:g}*",
             f"📊 Tỉ giá mua: *{_fmt(z['ti_gia_mua'])}*",
@@ -154,9 +160,9 @@ def _build_card_text(e: dict) -> str:
     conf = mp["confidence"]
     badge = f"{conf}% ✓" if conf >= 80 else f"{conf}% ?"
     lines = [
-        f"📋 *Giao dịch {ocr['ngay']}*  `{badge}`",
-        f"👤 Người nhận: {ocr['nguoi_nhan'] or '—'}",
-        f"📝 Nội dung: {ocr['noi_dung'] or '—'}",
+        f"📋 *Giao dịch {_md_esc(ocr['ngay'])}*  `{badge}`",
+        f"👤 Người nhận: {_md_esc(ocr['nguoi_nhan']) or '—'}",
+        f"📝 Nội dung: {_md_esc(ocr['noi_dung']) or '—'}",
     ]
     # USD payment: show both USD and VND
     if e.get("is_usd_payment"):
@@ -167,12 +173,12 @@ def _build_card_text(e: dict) -> str:
         lines.append(f"💰 {'Thu' if loai == 'Thu' else 'Chi'}: *{_fmt(ocr['so_tien'])} ₫*")
     lines.extend([
         "",
-        f"🏢 Ngành Nghề: *{mp['nganh_nghe'] or 'Chưa chọn'}*",
-        f"📂 Danh mục: *{mp['danh_muc'] or 'Chưa chọn'}*",
+        f"🏢 Ngành Nghề: *{_md_esc(mp['nganh_nghe']) or 'Chưa chọn'}*",
+        f"📂 Danh mục: *{_md_esc(mp['danh_muc']) or 'Chưa chọn'}*",
     ])
     # PTTT chỉ áp dụng cho khoản Chi
     if loai != "Thu":
-        lines.append(f"💳 PTTT: *{mp['pttt'] or 'Chưa chọn'}*")
+        lines.append(f"💳 PTTT: *{_md_esc(mp['pttt']) or 'Chưa chọn'}*")
     return "\n".join(lines)
 
 
@@ -297,8 +303,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # In group: skip the photo if caption tags another user (not the bot).
     # Process only when no tag, OR caption tags the bot itself.
     is_group = msg.chat.type in ("group", "supergroup")
+    bot_username = (await context.bot.get_me()).username or ""
     if is_group:
-        bot_username = (await context.bot.get_me()).username or ""
         # If THIS message's caption tags other user → mark album to skip (or skip directly)
         tags_other = _caption_tags_other_user(msg, bot_username)
         if tags_other:
@@ -312,6 +318,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info("[PHOTO-SKIP] user=%s chat=%s media_group=%s already marked skip",
                         user_tag, chat_id, media_group_id)
             return
+
+    # Strip @botname from caption so it doesn't leak into noi_dung / sheet
+    if caption and bot_username:
+        caption = caption.replace(f"@{bot_username}", "").strip()
 
     # Handle media group (album): share caption across all photos in group
     if media_group_id:
