@@ -181,33 +181,26 @@ def _build_card_text(e: dict) -> str:
         "",
         f"🏢 Ngành Nghề: *{_md_esc(mp['nganh_nghe']) or 'Chưa chọn'}*",
         f"📂 Danh mục: *{_md_esc(mp['danh_muc']) or 'Chưa chọn'}*",
+        f"💳 PTTT: *{_md_esc(mp['pttt']) or 'Chưa chọn'}*",
     ])
-    # PTTT chỉ áp dụng cho khoản Chi
-    if loai != "Thu":
-        lines.append(f"💳 PTTT: *{_md_esc(mp['pttt']) or 'Chưa chọn'}*")
     return "\n".join(lines)
 
 
-def _build_card_buttons(eid: str, is_zelle: bool = False, loai: str = "Chi") -> InlineKeyboardMarkup:
+def _build_card_buttons(eid: str, is_zelle: bool = False) -> InlineKeyboardMarkup:
     if is_zelle:
         # Zelle: chỉ Lưu / Hủy, không cần Sửa
         return InlineKeyboardMarkup([[
             InlineKeyboardButton("✅ Lưu vào Lãi tỉ giá", callback_data=f"save_{eid}"),
             InlineKeyboardButton("❌ Hủy", callback_data=f"skip_{eid}"),
         ]])
-    rows = [
+    return InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Lưu vào Sheets", callback_data=f"save_{eid}"),
          InlineKeyboardButton("❌ Hủy", callback_data=f"skip_{eid}")],
         [InlineKeyboardButton("📝 Sửa Ngành nghề", callback_data=f"edit_nn_{eid}"),
          InlineKeyboardButton("📝 Sửa Danh mục", callback_data=f"edit_dm_{eid}")],
-    ]
-    # Khoản Thu không có PTTT → bỏ nút Sửa PTTT
-    if loai == "Thu":
-        rows.append([InlineKeyboardButton("✏️ Sửa nội dung", callback_data=f"edit_nd_{eid}")])
-    else:
-        rows.append([InlineKeyboardButton("📝 Sửa PTTT", callback_data=f"edit_pt_{eid}"),
-                     InlineKeyboardButton("✏️ Sửa nội dung", callback_data=f"edit_nd_{eid}")])
-    return InlineKeyboardMarkup(rows)
+        [InlineKeyboardButton("📝 Sửa PTTT", callback_data=f"edit_pt_{eid}"),
+         InlineKeyboardButton("✏️ Sửa nội dung", callback_data=f"edit_nd_{eid}")],
+    ])
 
 
 # ===== Command Handlers =====
@@ -535,7 +528,7 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
         logger.info("[CARD-CREATED] chat=%s eid=%s | %s",
                     chat_id, eid, _entry_summary(entry))
         text = _build_card_text(entry)
-        kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+        kb = _build_card_buttons(eid, entry.get("is_zelle", False))
         # Delete progress message and send card
         try:
             await progress.delete()
@@ -689,7 +682,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     eid = _store_entry(chat_id, entry)
     text_card = _build_card_text(entry)
-    kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+    kb = _build_card_buttons(eid, entry.get("is_zelle", False))
     await msg.reply_text(text_card, parse_mode="Markdown", reply_markup=kb)
 
 
@@ -804,12 +797,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
         return
 
-    # Edit PTTT (chỉ khoản Chi mới có PTTT)
+    # Edit PTTT
     if data.startswith("edit_pt_"):
         eid = data[8:]
-        entry = _get_entry(chat_id, eid)
-        if entry and entry.get("loai") == "Thu":
-            return
         options = get_unique_pttt()
         buttons = [[InlineKeyboardButton(o, callback_data=f"spt_{eid}_{o}")] for o in options]
         buttons.append([InlineKeyboardButton("⬅️ Quay lại", callback_data=f"back_{eid}")])
@@ -839,7 +829,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info("[EDIT-NN] user=%s chat=%s eid=%s %r → %r",
                         user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
-            kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+            kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
         return
 
@@ -854,7 +844,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info("[EDIT-DM] user=%s chat=%s eid=%s %r → %r",
                         user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
-            kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+            kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
         return
 
@@ -869,7 +859,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.info("[EDIT-PTTT] user=%s chat=%s eid=%s %r → %r",
                         user_tag, chat_id, eid, old, val)
             text = _build_card_text(entry)
-            kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+            kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
         return
 
@@ -879,7 +869,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         entry = _get_entry(chat_id, eid)
         if entry:
             text = _build_card_text(entry)
-            kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+            kb = _build_card_buttons(eid, entry.get("is_zelle", False))
             await query.edit_message_text(text, parse_mode="Markdown", reply_markup=kb)
         return
 
@@ -938,7 +928,7 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
                 "noi_dung": ocr.get("noi_dung", ""),
                 "thu": _fmt(so_tien) if loai == "Thu" else "",
                 "chi": _fmt(so_tien) if loai == "Chi" else "",
-                "pttt": mp.get("pttt", "") if loai == "Chi" else "",
+                "pttt": mp.get("pttt", ""),
                 "ghi_chu": "",
                 "nguoi_nhan": ocr.get("nguoi_nhan", ""),
                 "image_url": entry.get("image_url", ""),
@@ -972,8 +962,7 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
         nguoi_nhan = ocr.get("nguoi_nhan", "")
         if nguoi_nhan and mp.get("nganh_nghe"):
             try:
-                mem_pttt = mp.get("pttt", "") if loai == "Chi" else ""
-                memory_upsert(nguoi_nhan, mp["nganh_nghe"], mp.get("danh_muc", ""), mem_pttt)
+                memory_upsert(nguoi_nhan, mp["nganh_nghe"], mp.get("danh_muc", ""), mp.get("pttt", ""))
             except Exception as ex:
                 logger.error("Memory upsert error: %s", ex)
 
@@ -1080,7 +1069,7 @@ async def handle_edit_noi_dung(update: Update, context: ContextTypes.DEFAULT_TYP
     logger.info("[EDIT-ND] user=%s chat=%s eid=%s %r → %r",
                 user_tag, msg.chat_id, eid, old, new_nd)
     text = _build_card_text(entry)
-    kb = _build_card_buttons(eid, entry.get("is_zelle", False), entry.get("loai", "Chi"))
+    kb = _build_card_buttons(eid, entry.get("is_zelle", False))
     await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
     return True
 
