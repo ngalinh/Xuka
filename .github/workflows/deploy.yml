@@ -1,0 +1,33 @@
+name: Reload Xuka bot on ai.basso.vn
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  reload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger reload
+        env:
+          PLATFORM_TOKEN: ${{ secrets.BASSO_PLATFORM_TOKEN }}
+          BOT_ID: 214cc064687e1ff52ddf
+        run: |
+          if [ -z "$PLATFORM_TOKEN" ]; then
+            echo "::error::Missing BASSO_PLATFORM_TOKEN secret"
+            exit 1
+          fi
+          status=$(curl -sS -o /tmp/resp.txt -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $PLATFORM_TOKEN" \
+            -H 'Content-Length: 0' \
+            "https://ai.basso.vn/platform/api/python-bots/${BOT_ID}/reload")
+          echo "HTTP $status"
+          cat /tmp/resp.txt
+          echo
+          if [ "$status" != "200" ]; then
+            echo "::error::Reload failed (HTTP $status). Token may have expired — refresh it in repo Settings → Secrets → BASSO_PLATFORM_TOKEN."
+            exit 1
+          fi
+          echo "::notice::Bot reloaded successfully"
