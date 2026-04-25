@@ -50,6 +50,12 @@ def _md_esc(s: str) -> str:
         return s
     return re.sub(r'([_*`\[\]])', r'\\\1', s)
 
+def _has_thu_keyword(text: str) -> bool:
+    """True if text contains 'thu' as a standalone word (not 'thuê', 'thuốc'…)."""
+    if not text:
+        return False
+    return bool(re.search(r'\bthu\b', text, re.IGNORECASE))
+
 def _parse_amount(text: str) -> int | None:
     cleaned = text.strip().lower()
     m = re.match(r'^([\d.,]+)\s*(tr|triệu|trieu)$', cleaned)
@@ -432,9 +438,9 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
         zelle_info = _detect_zelle(caption) if caption else None
         is_sell_zelle = bool(zelle_info and zelle_info.get("is_sell"))
 
-        # Sell zelle = customer pays VND into our account → Thu (income).
-        # Other bank-transfer screenshots default to Chi (outgoing).
-        loai = "Thu" if is_sell_zelle else "Chi"
+        # Sell zelle, OR caption containing the standalone word 'thu',
+        # marks this as Thu (income). Other CK screenshots default to Chi.
+        loai = "Thu" if (is_sell_zelle or _has_thu_keyword(caption)) else "Chi"
         GENERIC_OCR = {"chuyen tien", "chuyển tiền", "ck", "tt", "thanh toan", "thanh toán", "noi dung", ""}
         ocr_nd_clean = (ocr.noi_dung or "").strip().lower()
 
