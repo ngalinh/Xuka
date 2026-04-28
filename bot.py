@@ -560,6 +560,8 @@ def _has_amount(text: str) -> bool:
         return True
     if re.search(r'\$\s*\d+', lower):
         return True
+    if re.search(r'\b\d{1,3}(?:[.,]\d{3})+\b', lower):  # 1,790,400 or 1.790.400
+        return True
     if re.search(r'\b\d{4,}\b', lower):  # plain 4+ digit number
         return True
     return False
