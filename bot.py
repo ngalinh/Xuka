@@ -51,10 +51,12 @@ def _md_esc(s: str) -> str:
     return re.sub(r'([_*`\[\]])', r'\\\1', s)
 
 def _has_thu_keyword(text: str) -> bool:
-    """True if text contains 'thu' as a standalone word (not 'thuê', 'thuốc'…)."""
+    """True if text starts with 'thu' as a verb (e.g. 'thu 5tr', 'Thu hộ').
+    Leading-word match avoids false positives on Vietnamese names like
+    'Vu Thu Tam' where 'Thu' is a middle name, not an action."""
     if not text:
         return False
-    return bool(re.search(r'\bthu\b', text, re.IGNORECASE))
+    return bool(re.match(r'^\s*thu\b', text, re.IGNORECASE))
 
 def _parse_amount(text: str) -> int | None:
     cleaned = text.strip().lower()
@@ -633,7 +635,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Use full text so history lookup matches "bán zelle" rows
         noi_dung = text
     else:
-        loai = "Thu" if any(w in noi_dung.lower() for w in ["thu", "nhận", "hoàn"]) else "Chi"
+        # Loai inferred from the LEADING verb only — 'chi 5tr Vu Thu Tam' is
+        # Chi, not Thu, even though the recipient's middle name is 'Thu'.
+        loai = "Thu" if _has_thu_keyword(text) else "Chi"
     mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="",
                         user_note=text, loai=loai.lower())
     ngay = datetime.now(VN_TZ).strftime("%d/%m/%Y")
