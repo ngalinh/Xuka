@@ -147,6 +147,10 @@ def map_entry(
                 pt = pttt_val
                 break
 
+    # 6. Thu entries: default PTTT to "Khách trả" when nothing else matched
+    if not pt and loai == "thu":
+        pt = "Khách trả"
+
     # Final confidence
     if not nn and not dm:
         confidence = 0
