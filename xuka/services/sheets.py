@@ -173,9 +173,16 @@ def get_unique_danh_muc(loai: str) -> list[str]:
     return _unique_danh_muc_thu if loai == "Thu" else _unique_danh_muc_chi
 
 
+EXTRA_PTTT = ["Khách trả"]
+
+
 def get_unique_pttt() -> list[str]:
     _load_cache()
-    return _unique_pttt
+    merged = list(_unique_pttt)
+    for extra in EXTRA_PTTT:
+        if extra not in merged:
+            merged.append(extra)
+    return merged
 
 
 def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
