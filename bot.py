@@ -58,6 +58,10 @@ def _has_thu_keyword(text: str) -> bool:
         return False
     return bool(re.match(r'^\s*thu\b', text, re.IGNORECASE))
 
+def _resolve_thang_ht(entry: dict) -> str:
+    """Tháng HT: 'tháng X' override from caption/text, else current month."""
+    return entry.get("thang_override") or str(datetime.now(VN_TZ).month)
+
 def _parse_amount(text: str) -> int | None:
     cleaned = text.strip().lower()
     m = re.match(r'^([\d.,]+)\s*(tr|triệu|trieu)$', cleaned)
@@ -181,6 +185,7 @@ def _build_card_text(e: dict) -> str:
         lines.append(f"💰 {'Thu' if loai == 'Thu' else 'Chi'}: *{_fmt(ocr['so_tien'])} ₫*")
     lines.extend([
         "",
+        f"📆 Tháng HT: *{_resolve_thang_ht(e)}*",
         f"🏢 Ngành Nghề: *{_md_esc(mp['nganh_nghe']) or 'Chưa chọn'}*",
         f"📂 Danh mục: *{_md_esc(mp['danh_muc']) or 'Chưa chọn'}*",
         f"💳 PTTT: *{_md_esc(mp['pttt']) or 'Chưa chọn'}*",
@@ -915,10 +920,7 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
             )
             so_tien_for_delete = z.get("total_ck", 0)
         else:
-            # Tháng HT: use 'tháng X' override from caption/text when present,
-            # otherwise the current month.
-            thang_override = entry.get("thang_override", "")
-            thang = thang_override if thang_override else str(now.month)
+            thang = _resolve_thang_ht(entry)
 
             logger.info("[SAVE→Thu Chi] user=%s eid=%s | thang=%s ngay=%s nn=%r dm=%r nd=%r %s=%s pttt=%r nguoi=%r img=%s",
                         user_tag, eid, thang, ngay_tt,
