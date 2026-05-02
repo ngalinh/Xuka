@@ -483,12 +483,11 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
             "image_url": image_url,
         }
 
-        # Extract "tháng X" from caption for month override
+        # Extract "tháng X" → Tháng HT override
         if caption:
-            import re as _re
-            m_thang = _re.search(r'(?:thang|tháng)\s*(\d{1,2})', caption, _re.IGNORECASE)
+            m_thang = re.search(r'(?:thang|tháng)\s*(\d{1,2})', caption, re.IGNORECASE)
             if m_thang:
-                entry["thang_override"] = m_thang.group(1)
+                entry["thang_override"] = str(int(m_thang.group(1)))
 
         # USD payment: auto-map to ORDER CHECKOUT / CHI - Vận chuyển quốc tế
         if is_usd_payment:
@@ -659,6 +658,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         },
         "loai": loai,
     }
+
+    # Extract "tháng X" → Tháng HT override (mirror photo handler)
+    m_thang = re.search(r'(?:thang|tháng)\s*(\d{1,2})', text, re.IGNORECASE)
+    if m_thang:
+        entry["thang_override"] = str(int(m_thang.group(1)))
 
     if zelle and amount > 0:
         if is_sell_zelle:
@@ -911,15 +915,10 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
             )
             so_tien_for_delete = z.get("total_ck", 0)
         else:
-            # Use thang_override from caption (e.g. "tháng 3") if available
+            # Tháng HT: use 'tháng X' override from caption/text when present,
+            # otherwise the current month.
             thang_override = entry.get("thang_override", "")
-            if thang_override:
-                thang = thang_override
-            else:
-                try:
-                    thang = str(int(ngay_tt.split("/")[1]))
-                except (IndexError, ValueError):
-                    thang = str(now.month)
+            thang = thang_override if thang_override else str(now.month)
 
             logger.info("[SAVE→Thu Chi] user=%s eid=%s | thang=%s ngay=%s nn=%r dm=%r nd=%r %s=%s pttt=%r nguoi=%r img=%s",
                         user_tag, eid, thang, ngay_tt,
