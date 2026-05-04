@@ -1,15 +1,16 @@
-"""Claude Vision OCR - đọc screenshot chuyển khoản ngân hàng."""
+"""Gemini Vision OCR - đọc screenshot chuyển khoản ngân hàng."""
 from __future__ import annotations
 
-import base64
 import json
 import logging
 import re
 from dataclasses import dataclass
 
-import anthropic
+import google.generativeai as genai
 
-from xuka.config import ANTHROPIC_API_KEY
+from xuka.config import GEMINI_API_KEY
+
+GEMINI_MODEL = "gemini-2.5-flash"
 
 logger = logging.getLogger(__name__)
 
@@ -119,26 +120,24 @@ USD_TO_VND_RATE = 26000
 
 
 def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
-    """Gọi Claude Vision để đọc screenshot chuyển khoản."""
-    if not ANTHROPIC_API_KEY:
-        raise ValueError("Chưa cấu hình ANTHROPIC_API_KEY")
+    """Gọi Gemini Vision để đọc screenshot chuyển khoản."""
+    if not GEMINI_API_KEY:
+        raise ValueError("Chưa cấu hình GEMINI_API_KEY")
 
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=500,
-        messages=[{
-            "role": "user",
-            "content": [
-                {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-                {"type": "text", "text": VISION_PROMPT},
-            ],
-        }],
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel(GEMINI_MODEL)
+    response = model.generate_content(
+        [
+            {"mime_type": media_type, "data": image_bytes},
+            VISION_PROMPT,
+        ],
+        generation_config={
+            "max_output_tokens": 500,
+            "response_mime_type": "application/json",
+        },
     )
 
-    raw = response.content[0].text.strip()
+    raw = (response.text or "").strip()
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
         raise ValueError(f"Không parse được JSON từ OCR: {raw}")
