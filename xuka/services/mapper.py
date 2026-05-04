@@ -86,6 +86,8 @@ def map_entry(
                             loai, h_dm, noi_dung)
                 # Keep PTTT from history even if dm direction is wrong
                 pt = h_pt
+        else:
+            logger.info("[MAP-MISS] find_mapping miss noi_dung=%r", noi_dung)
 
     # 2. Bot Memory (by normalized recipient name)
     if not nn:
@@ -103,6 +105,8 @@ def map_entry(
                 logger.info("Memory match REJECTED (loai=%s but dm=%r): %s",
                             loai, m_dm, nguoi_nhan)
                 pt = pt or mem.get("pttt", "")
+        elif nguoi_nhan:
+            logger.info("[MAP-MISS] memory miss nguoi_nhan=%r", nguoi_nhan)
 
     # 3. Sheet history by recipient name
     if not nn and nguoi_nhan:
@@ -119,6 +123,8 @@ def map_entry(
                 logger.info("Recipient history REJECTED (loai=%s but dm=%r): %s",
                             loai, h_dm, nguoi_nhan)
                 pt = pt or h_pt
+        else:
+            logger.info("[MAP-MISS] find_by_recipient miss nguoi_nhan=%r", nguoi_nhan)
 
     # 4. Keyword inference (fallback)
     search_text = (user_note or "") + " " + (noi_dung or "")

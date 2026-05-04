@@ -84,7 +84,14 @@ def memory_lookup(recipient_name: str) -> dict | None:
     key = normalize_name(recipient_name)
     if not key:
         return None
-    return _memory_cache.get(key)
+    hit = _memory_cache.get(key)
+    if hit is None:
+        logger.info("[MEM] miss cache_size=%d key=%r raw=%r",
+                    len(_memory_cache), key, recipient_name)
+    else:
+        logger.info("[MEM] hit key=%r → %s/%s/%s",
+                    key, hit.get("nganh_nghe",""), hit.get("danh_muc",""), hit.get("pttt",""))
+    return hit
 
 
 def memory_upsert(recipient_name: str, nganh_nghe: str, danh_muc: str, pttt: str) -> None:
