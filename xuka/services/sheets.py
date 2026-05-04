@@ -197,7 +197,10 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
     if not noi_dung or len(noi_dung.strip()) < 3:
         return None
 
+    logger.info("[FM] cache_size=%d input=%r", len(_mapping_cache), noi_dung)
+
     if noi_dung in _mapping_cache:
+        logger.info("[FM] exact hit")
         return _mapping_cache[noi_dung]
 
     nd_norm = " ".join(_normalize(noi_dung).split())
@@ -210,6 +213,7 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
         norm_to_orig.setdefault(kn, k)
 
     if nd_norm in norm_to_orig:
+        logger.info("[FM] norm hit nd_norm=%r → %r", nd_norm, norm_to_orig[nd_norm])
         return _mapping_cache[norm_to_orig[nd_norm]]
 
     input_words = set(nd_norm.split())
@@ -233,7 +237,12 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
             best_score = overlap
             best_match = orig
 
-    return _mapping_cache[best_match] if best_match else None
+    if best_match:
+        logger.info("[FM] fuzzy hit overlap=%d → %r", best_score, best_match)
+        return _mapping_cache[best_match]
+    logger.info("[FM] no match (cache=%d, input_words=%d)",
+                len(_mapping_cache), len(input_words))
+    return None
 
 
 def find_by_recipient(recipient_name: str) -> tuple[str, str, str] | None:
