@@ -62,11 +62,10 @@ def _extract_recipient_from_noi_dung(noi_dung: str) -> str | None:
     nd = noi_dung.strip()
     if not nd:
         return None
-    # Patterns: "X ck Y", "CK cho Y", "chuyen tien Y"
     import re
     for pattern in [
-        r"(?:ck|chuyển khoản|chuyen khoan)\s+(?:cho\s+)?(.+)",
-        r"(.+?)\s+(?:ck|chuyển khoản)\s*$",
+        r"(?:ck|chuyển khoản|chuyen khoan|tt|thanh toan|thanh toán)\s+(?:cho\s+|ho\s+|hộ\s+)?(.+)",
+        r"(.+?)\s+(?:ck|chuyển khoản|chuyen khoan|chuyển tiền|chuyen tien)\s*$",
     ]:
         m = re.search(pattern, nd, re.IGNORECASE)
         if m:
@@ -186,41 +185,51 @@ def get_unique_pttt() -> list[str]:
 
 
 def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
-    """Tìm mapping từ lịch sử dựa trên nội dung."""
-    _load_cache()
-    if noi_dung in _mapping_cache:
-        return _mapping_cache[noi_dung]
+    """Tìm mapping từ lịch sử dựa trên nội dung.
 
-    noi_dung_lower = noi_dung.strip().lower()
-    if len(noi_dung_lower) < 3:
+    Match theo word overlap (đã chuẩn hoá bỏ dấu). Yêu cầu:
+    - overlap >= min(3, số từ input) để chặn key ngắn rác (vd 'tháng 5')
+    - overlap / min(input, key) >= 0.5 để đảm bảo tương đồng đáng kể
+    """
+    _load_cache()
+    if not noi_dung or len(noi_dung.strip()) < 3:
         return None
 
-    # Exact match first
     if noi_dung in _mapping_cache:
         return _mapping_cache[noi_dung]
-    for k in _mapping_cache:
-        if k.lower() == noi_dung_lower:
-            return _mapping_cache[k]
 
-    input_words = set(noi_dung_lower.split())
+    nd_norm = " ".join(_normalize(noi_dung).split())
+    if not nd_norm:
+        return None
+
+    norm_to_orig: dict[str, str] = {}
+    for k in _mapping_cache:
+        kn = " ".join(_normalize(k).split())
+        norm_to_orig.setdefault(kn, k)
+
+    if nd_norm in norm_to_orig:
+        return _mapping_cache[norm_to_orig[nd_norm]]
+
+    input_words = set(nd_norm.split())
+    if not input_words:
+        return None
+    min_required = min(3, len(input_words))
+
     best_match: str | None = None
     best_score = 0
 
-    for key in _mapping_cache:
-        key_lower = key.lower()
-        # Substring match (both directions)
-        if key_lower in noi_dung_lower or noi_dung_lower in key_lower:
-            score = len(key_lower)
-            if score > best_score:
-                best_score = score
-                best_match = key
+    for kn, orig in norm_to_orig.items():
+        key_words = set(kn.split())
+        if not key_words:
             continue
-        # Word overlap match
-        words_key = set(key_lower.split())
-        overlap = len(input_words & words_key)
-        if overlap >= 2 and overlap > best_score:
+        overlap = len(input_words & key_words)
+        if overlap < min_required:
+            continue
+        if overlap / min(len(input_words), len(key_words)) < 0.5:
+            continue
+        if overlap > best_score:
             best_score = overlap
-            best_match = key
+            best_match = orig
 
     return _mapping_cache[best_match] if best_match else None
 
