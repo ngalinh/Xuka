@@ -189,7 +189,9 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
 
     Match theo word overlap (đã chuẩn hoá bỏ dấu). Yêu cầu:
     - overlap >= min(3, số từ input) để chặn key ngắn rác (vd 'tháng 5')
-    - overlap / min(input, key) >= 0.5 để đảm bảo tương đồng đáng kể
+    - overlap >= 50% số từ INPUT để chặn key chỉ trùng vài từ chung
+      (vd input dài 7 từ, key chỉ trùng 3 từ chung như 'tiền/tháng/5'
+      sẽ bị loại - 3/7 ≈ 0.43 < 0.5)
     """
     _load_cache()
     if not noi_dung or len(noi_dung.strip()) < 3:
@@ -225,7 +227,7 @@ def find_mapping(noi_dung: str) -> tuple[str, str, str] | None:
         overlap = len(input_words & key_words)
         if overlap < min_required:
             continue
-        if overlap / min(len(input_words), len(key_words)) < 0.5:
+        if overlap / len(input_words) < 0.5:
             continue
         if overlap > best_score:
             best_score = overlap
