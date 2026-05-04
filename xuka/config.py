@@ -51,10 +51,13 @@ def _resolve_credentials_file() -> str:
 
 
 GOOGLE_CREDENTIALS_FILE = _resolve_credentials_file()
-SPREADSHEET_URL = os.getenv(
-    "SPREADSHEET_URL",
-    "https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit",
-)
-SHEET_NAME = os.getenv("SHEET_NAME", "Thu Chi")
+
+DEFAULT_SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1bVQLczc-vYsjc0ngWG2cx8raLDkFjf7CyaNkiXSVRgA/edit"
+SPREADSHEET_URL = (os.getenv("SPREADSHEET_URL", "").strip() or DEFAULT_SPREADSHEET_URL)
+if "/spreadsheets/d/" not in SPREADSHEET_URL:
+    logger.warning("SPREADSHEET_URL trông không hợp lệ (%r) — dùng default", SPREADSHEET_URL)
+    SPREADSHEET_URL = DEFAULT_SPREADSHEET_URL
+
+SHEET_NAME = os.getenv("SHEET_NAME", "").strip() or "Thu Chi"
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
