@@ -17,20 +17,12 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_credentials_file() -> str:
-    default_cred = str(_project_root / "credentials.json")
-    path = os.getenv("GOOGLE_CREDENTIALS_FILE", default_cred)
-    # Resolve relative paths against project root
-    if not os.path.isabs(path):
-        path = str(_project_root / path)
-    if os.path.exists(path):
-        logger.info("Using credentials from file: %s", path)
-        return path
-
-    # Try env var (base64 or raw JSON) - useful for hosted environments
-    raw_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "")
+    # Prefer env var first so a fresh key can override a stale on-disk file
+    # in hosted environments (where SSH/file replacement isn't available).
+    raw_json = os.getenv("GOOGLE_CREDENTIALS_JSON", "").strip()
     if raw_json:
         try:
-            if raw_json.strip().startswith("{"):
+            if raw_json.startswith("{"):
                 parsed = json.loads(raw_json)
             else:
                 padding = 4 - len(raw_json) % 4
@@ -41,13 +33,23 @@ def _resolve_credentials_file() -> str:
             tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".json", mode="wb")
             tmp.write(json.dumps(parsed).encode("utf-8"))
             tmp.close()
-            logger.info("Credentials loaded from env var, email: %s", parsed.get("client_email", "?"))
+            logger.info("Credentials loaded from GOOGLE_CREDENTIALS_JSON env, email: %s",
+                        parsed.get("client_email", "?"))
             return tmp.name
         except Exception as e:
-            logger.error("Failed to parse GOOGLE_CREDENTIALS_JSON: %s", e)
-            raise
+            logger.error("Failed to parse GOOGLE_CREDENTIALS_JSON (%s): %s",
+                         type(e).__name__, e)
+            # Fall through to file lookup
 
-    raise FileNotFoundError("No Google credentials found")
+    default_cred = str(_project_root / "credentials.json")
+    path = os.getenv("GOOGLE_CREDENTIALS_FILE", default_cred)
+    if not os.path.isabs(path):
+        path = str(_project_root / path)
+    if os.path.exists(path):
+        logger.info("Using credentials from file: %s", path)
+        return path
+
+    raise FileNotFoundError("No Google credentials found (GOOGLE_CREDENTIALS_JSON empty and no file)")
 
 
 GOOGLE_CREDENTIALS_FILE = _resolve_credentials_file()
