@@ -56,7 +56,7 @@ def _load_memory() -> None:
         ws = _get_memory_worksheet()
         rows = ws.get_all_values()
     except Exception as e:
-        logger.error("Không thể đọc Bot Memory: %s", e)
+        logger.exception("Không thể đọc Bot Memory (type=%s)", type(e).__name__)
         return
 
     cache: dict[str, dict] = {}

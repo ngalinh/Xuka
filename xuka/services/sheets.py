@@ -84,7 +84,7 @@ def _load_cache() -> None:
         ws = _get_worksheet()
         all_vals = ws.get_all_values()
     except Exception as e:
-        logger.error("Không thể đọc dữ liệu sheet: %s", e)
+        logger.exception("Không thể đọc dữ liệu sheet (type=%s)", type(e).__name__)
         return
 
     normalize_name = _normalize
