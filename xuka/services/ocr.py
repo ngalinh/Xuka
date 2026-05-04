@@ -132,7 +132,7 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
             VISION_PROMPT,
         ],
         generation_config={
-            "max_output_tokens": 500,
+            "max_output_tokens": 2048,
             "response_mime_type": "application/json",
         },
     )
