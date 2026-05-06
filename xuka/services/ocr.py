@@ -11,6 +11,9 @@ import google.generativeai as genai
 from xuka.config import GEMINI_API_KEY
 
 GEMINI_MODEL = "gemini-2.5-flash"
+# Hard timeout (seconds) for the Gemini Vision call. Without this the SDK can
+# hang indefinitely on a stalled connection and block the bot's event loop.
+GEMINI_TIMEOUT_SEC = 60
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +138,7 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
             "max_output_tokens": 2048,
             "response_mime_type": "application/json",
         },
+        request_options={"timeout": GEMINI_TIMEOUT_SEC},
     )
 
     raw = (response.text or "").strip()

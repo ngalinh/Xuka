@@ -358,8 +358,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_bytes = await file.download_as_bytearray()
         image_url = await _upload_image(bytes(image_bytes), file.file_path)
 
-        # OCR
-        ocr = extract_transfer(bytes(image_bytes), "image/jpeg")
+        # OCR — run in a thread; the SDK call is blocking and can stall the
+        # asyncio event loop (and thus the whole bot) on slow API responses.
+        ocr = await asyncio.to_thread(extract_transfer, bytes(image_bytes), "image/jpeg")
         logger.info("OCR: nguoi=%r, noi_dung=%r, ngan_hang=%r, loai=%r, so_tien=%r, is_transfer=%r",
                     ocr.nguoi_nhan, ocr.noi_dung, ocr.ngan_hang, ocr.loai, ocr.so_tien,
                     getattr(ocr, "is_transfer", True))
@@ -459,7 +460,8 @@ async def _process_photo_entry(msg, chat_id: int, ocr, image_url: str, caption: 
         else:
             noi_dung = ocr.nguoi_nhan or ""
 
-        mapping = map_entry(
+        mapping = await asyncio.to_thread(
+            map_entry,
             nguoi_nhan=ocr.nguoi_nhan,
             noi_dung=noi_dung,
             ngan_hang=ocr.ngan_hang,
@@ -642,8 +644,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Loai inferred from the LEADING verb only — 'chi 5tr Vu Thu Tam' is
         # Chi, not Thu, even though the recipient's middle name is 'Thu'.
         loai = "Thu" if _has_thu_keyword(text) else "Chi"
-    mapping = map_entry(nguoi_nhan="", noi_dung=noi_dung, ngan_hang="",
-                        user_note=text, loai=loai.lower())
+    mapping = await asyncio.to_thread(
+        map_entry, nguoi_nhan="", noi_dung=noi_dung, ngan_hang="",
+        user_note=text, loai=loai.lower(),
+    )
     ngay = datetime.now(VN_TZ).strftime("%d/%m/%Y")
 
     entry = {
@@ -782,7 +786,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     info.get("nguoi_nhan",""), info.get("noi_dung",""), info.get("is_zelle"))
         # Delete from sheet
         try:
-            await _delete_saved(info)
+            await asyncio.to_thread(_delete_saved, info)
             del saved_entries[eid]
             logger.info("[DELETE-OK] user=%s eid=%s", user_tag, eid)
             await query.edit_message_text("🗑 Đã xóa giao dịch khỏi sheet.")
@@ -795,7 +799,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Edit Ngành Nghề
     if data.startswith("edit_nn_"):
         eid = data[8:]
-        options = get_unique_nganh_nghe()
+        options = await asyncio.to_thread(get_unique_nganh_nghe)
         buttons = [[InlineKeyboardButton(o, callback_data=f"snn_{eid}_{o}")] for o in options]
         buttons.append([InlineKeyboardButton("⬅️ Quay lại", callback_data=f"back_{eid}")])
         await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
@@ -806,7 +810,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid = data[8:]
         entry = _get_entry(chat_id, eid)
         loai = entry.get("loai", "Chi") if entry else "Chi"
-        options = get_unique_danh_muc(loai)
+        options = await asyncio.to_thread(get_unique_danh_muc, loai)
         buttons = [[InlineKeyboardButton(o, callback_data=f"sdm_{eid}_{o}")] for o in options]
         buttons.append([InlineKeyboardButton("⬅️ Quay lại", callback_data=f"back_{eid}")])
         await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
@@ -815,7 +819,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Edit PTTT
     if data.startswith("edit_pt_"):
         eid = data[8:]
-        options = get_unique_pttt()
+        options = await asyncio.to_thread(get_unique_pttt)
         buttons = [[InlineKeyboardButton(o, callback_data=f"spt_{eid}_{o}")] for o in options]
         buttons.append([InlineKeyboardButton("⬅️ Quay lại", callback_data=f"back_{eid}")])
         await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
@@ -906,7 +910,8 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
             logger.info("[SAVE→Lãi tỉ giá] user=%s eid=%s | ngay=%s tk_nhan=%r usd=%s ti_gia=%s total=%s",
                         user_tag, eid, ngay_tt, z.get("tai_khoan_nhan",""),
                         z.get("usd"), z.get("ti_gia_mua"), z.get("total_ck"))
-            append_zelle_entry(
+            await asyncio.to_thread(
+                append_zelle_entry,
                 ngay=ngay_tt,
                 tai_khoan_nhan=z.get("tai_khoan_nhan", ""),
                 total_ck=z.get("total_ck", 0),
@@ -928,7 +933,7 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
                         ocr.get("noi_dung",""), loai, _fmt(so_tien),
                         mp.get("pttt",""), ocr.get("nguoi_nhan",""),
                         bool(entry.get("image_url")))
-            append_entries([{
+            await asyncio.to_thread(append_entries, [{
                 "thang": thang, "ngay_tt": ngay_tt,
                 "nganh_nghe": mp.get("nganh_nghe", ""),
                 "danh_muc": mp.get("danh_muc", ""),
@@ -969,7 +974,10 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
         nguoi_nhan = ocr.get("nguoi_nhan", "")
         if nguoi_nhan and mp.get("nganh_nghe"):
             try:
-                memory_upsert(nguoi_nhan, mp["nganh_nghe"], mp.get("danh_muc", ""), mp.get("pttt", ""))
+                await asyncio.to_thread(
+                    memory_upsert, nguoi_nhan, mp["nganh_nghe"],
+                    mp.get("danh_muc", ""), mp.get("pttt", ""),
+                )
             except Exception as ex:
                 logger.error("Memory upsert error: %s", ex)
 
@@ -985,8 +993,8 @@ async def _save_entry(query, entry: dict, eid: str, chat_id: int, user_tag: str 
         await query.edit_message_text(f"❌ Lỗi lưu: {e}")
 
 
-async def _delete_saved(info: dict):
-    """Delete a saved row from the appropriate sheet."""
+def _delete_saved(info: dict):
+    """Delete a saved row from the appropriate sheet. Sync — call via asyncio.to_thread."""
     from xuka.services.sheets import _get_client
     from xuka.config import SPREADSHEET_URL
     client = _get_client()
@@ -1114,6 +1122,11 @@ def main():
         return
 
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    async def _on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        logger.exception("Unhandled handler error: %s", context.error)
+
+    app.add_error_handler(_on_error)
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
