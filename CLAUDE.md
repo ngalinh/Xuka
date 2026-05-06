@@ -63,3 +63,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+## 5. Workflow: PR Auto-Merge
+
+After pushing a fix and creating a PR for this repo (`ngalinh/Xuka`):
+- Mark the PR ready for review (not draft).
+- Enable auto-merge with squash. If the repo has no required checks pending and the PR is already mergeable, merge it directly with squash instead.
+- Skip this only if the user explicitly says "don't merge" / "leave as draft" / "wait for review".
