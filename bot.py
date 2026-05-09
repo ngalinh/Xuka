@@ -738,6 +738,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         eid = data[5:]
         entry = _get_entry(chat_id, eid)
         if not entry:
+            # Duplicate click after a successful save: the first click already
+            # wrote the row and edited the message to "Đã lưu". Don't overwrite
+            # that with an "expired" message.
+            if eid in saved_entries:
+                logger.info("[SAVE-DUP] user=%s chat=%s eid=%s already_saved",
+                            user_tag, chat_id, eid)
+                return
             logger.warning("[SAVE-FAIL] user=%s chat=%s eid=%s reason=entry_expired",
                            user_tag, chat_id, eid)
             await query.edit_message_text("⚠️ Giao dịch đã hết hạn.")
