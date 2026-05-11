@@ -365,16 +365,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ocr.nguoi_nhan, ocr.noi_dung, ocr.ngan_hang, ocr.loai, ocr.so_tien,
                     getattr(ocr, "is_transfer", True))
 
-        # Skip if image is not a bank transfer screenshot
+        # Gemini is non-deterministic — a real CK image can sporadically come
+        # back as is_transfer=false. Retry once before giving up.
         if not getattr(ocr, "is_transfer", True):
-            logger.info("Image not a bank transfer, skipping (chat_id=%s)", chat_id)
+            logger.info("[OCR-RETRY] is_transfer=false, retrying once (chat_id=%s)", chat_id)
+            ocr = await asyncio.to_thread(extract_transfer, bytes(image_bytes), "image/jpeg")
+            logger.info("[OCR-RETRY] result: is_transfer=%r so_tien=%r nguoi=%r",
+                        getattr(ocr, "is_transfer", True), ocr.so_tien, ocr.nguoi_nhan)
+
+        # Skip if image is not a bank transfer screenshot (after retry)
+        if not getattr(ocr, "is_transfer", True):
+            logger.info("Image not a bank transfer after retry, skipping (chat_id=%s)", chat_id)
             try:
                 await progress.delete()
             except Exception:
                 pass
-            # Only notify in private chats to avoid group noise
-            if msg.chat.type == "private":
-                await msg.reply_text("ℹ️ Đây không phải ảnh chuyển khoản, bot bỏ qua.")
+            await msg.reply_text(
+                "ℹ️ Em chưa nhận diện được đây là ảnh chuyển khoản. "
+                "Anh/chị gửi lại giúp em ảnh rõ nét hơn nhé."
+            )
             return
 
         if media_group_id:
