@@ -22,10 +22,18 @@ from xuka.services.sheets import (
     get_unique_nganh_nghe, get_unique_danh_muc, get_unique_pttt,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
 VN_TZ = timezone(timedelta(hours=7))
+
+# Render log timestamps in VN time (UTC+7) so they match users' local clock.
+# Using staticmethod so the lambda doesn't bind to the Formatter instance.
+logging.Formatter.converter = staticmethod(
+    lambda ts: datetime.fromtimestamp(ts, VN_TZ).timetuple()
+)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s VN - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # In-memory state: chat_id → {entry_id: entry_data}
 entries_store: dict[int, dict[str, dict]] = {}
