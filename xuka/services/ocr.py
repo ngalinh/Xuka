@@ -135,18 +135,32 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
             VISION_PROMPT,
         ],
         generation_config={
-            "max_output_tokens": 2048,
+            "max_output_tokens": 8192,
             "response_mime_type": "application/json",
+            # Disable thinking to prevent it from consuming the token budget
+            # before the actual JSON response is generated.
+            "thinking_config": {"thinking_budget": 0},
         },
         request_options={"timeout": GEMINI_TIMEOUT_SEC},
     )
 
     raw = (response.text or "").strip()
+    finish_reason = (
+        response.candidates[0].finish_reason.name
+        if response.candidates
+        else "UNKNOWN"
+    )
+    if finish_reason not in ("STOP", "1"):
+        logger.warning("Gemini finish_reason=%s, raw=%r", finish_reason, raw[:300])
+
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if not match:
         raise ValueError(f"Không parse được JSON từ OCR: {raw}")
 
-    parsed = json.loads(match.group())
+    try:
+        parsed = json.loads(match.group())
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Không parse được JSON từ OCR: {raw}") from exc
 
     # Check if image is actually a bank transfer screenshot
     if parsed.get("is_transfer") is False:
