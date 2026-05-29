@@ -137,9 +137,6 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
         generation_config={
             "max_output_tokens": 8192,
             "response_mime_type": "application/json",
-            # Disable thinking to prevent it from consuming the token budget
-            # before the actual JSON response is generated.
-            "thinking_config": {"thinking_budget": 0},
         },
         request_options={"timeout": GEMINI_TIMEOUT_SEC},
     )
