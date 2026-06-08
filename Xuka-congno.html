@@ -1,0 +1,2562 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quản lý dòng tiền CK 3 bên</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8f7f5;--bg3:#f1f0ec;--bg4:#eeecea;
+  --txt:#1a1a1a;--txt2:#6b6b6b;--txt3:#a0a09c;
+  --brd:#e5e4e0;--brd2:#d0cfc9;
+  --grn:#0f6e56;--grn2:#e1f5ee;--grn3:#085041;--grn4:#d0ede4;
+  --amb:#ba7517;--amb2:#faeeda;--amb3:#854F0B;
+  --red:#e24b4a;--red2:#fcebeb;--red3:#791f1f;
+  --blu:#185FA5;--blu2:#e6f1fb;--blu3:#0c447c;
+  --pur2:#EEEDFE;--pur3:#3C3489;
+  --ora2:#FAECE7;--ora3:#993C1D;
+  --r:8px;--rl:12px
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,sans-serif;background:var(--bg3);color:var(--txt);font-size:14px;line-height:1.5;min-height:100vh}
+.app{max-width:1440px;margin:0 auto;background:var(--bg);min-height:100vh;border-left:1px solid var(--brd);border-right:1px solid var(--brd);display:flex;flex-direction:column}
+
+/* HEADER */
+.hdr{padding:12px 20px;border-bottom:1px solid var(--brd);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;background:var(--bg);position:sticky;top:0;z-index:50}
+.hdr-l{display:flex;align-items:center;gap:10px}
+.logo{width:30px;height:30px;background:var(--grn);border-radius:7px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;flex-shrink:0}
+.hdr-title{font-size:15px;font-weight:700;color:var(--txt)}
+.hdr-sub{font-size:11px;color:var(--txt2)}
+.hdr-r{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.role-pill{display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--brd);border-radius:20px;padding:5px 12px;font-size:13px}
+.role-pill label{font-size:11px;color:var(--txt2)}
+.role-pill select{background:none;border:none;font-size:13px;font-weight:600;color:var(--txt);cursor:pointer;outline:none}
+.locked-badge{font-size:11px;background:var(--red2);color:var(--red3);padding:2px 8px;border-radius:20px;font-weight:600}
+
+/* LAYOUT: sidebar + content */
+.layout{display:flex;min-height:calc(100vh - 55px)}
+
+/* SIDEBAR */
+.sidebar{width:200px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--brd);display:flex;flex-direction:column;position:sticky;top:55px;height:calc(100vh - 55px);overflow-y:auto}
+.sidebar-section{padding:8px 0}
+.sidebar-label{font-size:10px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.06em;padding:8px 16px 4px}
+.tab{padding:9px 16px;font-size:13px;color:var(--txt2);cursor:pointer;border-left:3px solid transparent;white-space:nowrap;font-weight:500;transition:all .12s;display:flex;align-items:center;gap:8px;border-radius:0}
+.tab.on{color:var(--grn3);border-left-color:var(--grn);background:var(--grn2);font-weight:600}
+.tab:hover:not(.tab-locked){color:var(--txt);background:var(--bg3)}
+.tab-locked{opacity:.4;cursor:not-allowed;pointer-events:none}
+.tab-icon{font-size:15px;flex-shrink:0;width:18px;text-align:center}
+.tab-lbl{flex:1}
+.tab-lock{font-size:10px;color:var(--txt3)}
+.sidebar-divider{height:1px;background:var(--brd);margin:4px 12px}
+
+/* MAIN CONTENT */
+.body{flex:1;padding:20px;overflow-x:hidden;min-width:0}
+.sec{display:none}.sec.on{display:block}
+
+/* BUTTONS */
+.btn{font-size:13px;padding:7px 14px;border-radius:var(--r);border:1px solid var(--brd2);cursor:pointer;background:var(--bg);color:var(--txt);display:inline-flex;align-items:center;gap:6px;font-weight:500;transition:all .15s;white-space:nowrap}
+.btn:hover:not(:disabled){background:var(--bg2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-p{background:var(--grn);border-color:var(--grn3);color:#fff}
+.btn-p:hover:not(:disabled){background:var(--grn3)}
+.btn-sm{padding:4px 10px;font-size:12px}
+.btn-warn{background:var(--amb2);border-color:var(--amb);color:var(--amb3)}
+.btn-danger{background:var(--red2);border-color:var(--red3);color:var(--red3)}
+
+/* TOOLBAR */
+.toolbar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.toolbar select,.toolbar input{font-size:13px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none}
+.toolbar input{min-width:160px}
+.toolbar select:focus,.toolbar input:focus{border-color:var(--grn)}
+
+/* TABLES */
+.tw{overflow-x:auto;border:1px solid var(--brd);border-radius:var(--rl)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:9px 10px;text-align:center;font-weight:700;font-size:11px;color:var(--txt2);background:var(--bg2);border-bottom:1px solid var(--brd);white-space:nowrap;text-transform:uppercase;letter-spacing:.03em}
+td{padding:9px 10px;border-bottom:1px solid var(--brd);color:var(--txt);vertical-align:top}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.nowrap{white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg2)}
+.empty{text-align:center;padding:40px;color:var(--txt2);font-size:13px}
+.idb{font-size:11px;background:var(--bg2);padding:2px 6px;border-radius:4px;font-family:monospace;color:var(--txt2);border:1px solid var(--brd);cursor:pointer;white-space:nowrap}
+.idb:hover{background:var(--grn2);border-color:var(--grn)}
+
+/* BADGES */
+.badge{display:inline-block;font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap}
+.b-wait{background:var(--amb2);color:var(--amb3)}
+.b-done{background:var(--grn2);color:var(--grn3)}
+.b-part{background:var(--amb2);color:var(--amb3)}
+.b-over{background:var(--ora2);color:var(--ora3)}
+.b-cancel{background:var(--red2);color:var(--red3)}
+.b-new{background:var(--blu2);color:var(--blu3)}
+.b-sup{background:var(--pur2);color:var(--pur3)}
+.b-mh{background:var(--blu2);color:var(--blu3)}
+.b-ckd{background:#eaf3de;color:#27500a}
+.b-assigned{background:var(--grn2);color:var(--grn3)}
+
+/* ACTION PILL BUTTONS */
+.pill{display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;padding:0;width:30px;height:30px;transition:opacity .15s}
+.pill:hover{opacity:.75}
+.pill-del{background:#F7C1C1;color:#501313}
+.pill-edit{background:#B5D4F4;color:#042C53}
+.pill-attach{background:#9FE1CB;color:#04342C}
+.pill i{font-size:15px}
+/* Action buttons with text (tracking hành động) */
+.act-pill{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;padding:4px 12px;height:auto;white-space:nowrap;transition:opacity .15s}
+.act-pill:hover{opacity:.8}
+.act-pill.pill-attach{background:#9FE1CB;color:#04342C}
+.act-pill.pill-edit{background:#B5D4F4;color:#042C53}
+.pgbar{display:flex;align-items:center;gap:6px;padding:10px 0 0;flex-wrap:wrap}
+.pgbar span{font-size:12px;color:var(--txt2)}
+.pgbtn{font-size:12px;padding:4px 10px;border-radius:6px;border:1px solid var(--brd2);cursor:pointer;background:var(--bg);color:var(--txt)}
+.pgbtn:hover:not(:disabled){background:var(--bg2)}
+.pgbtn:disabled{opacity:.35;cursor:not-allowed}
+.pgbtn.cur{background:var(--grn);border-color:var(--grn3);color:#fff;font-weight:600}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+@media(max-width:700px){.dash-grid{grid-template-columns:1fr}}
+.scard{background:var(--bg);border:1px solid var(--brd);border-radius:var(--rl);padding:16px 20px}
+.scard-title{font-size:12px;color:var(--txt2);margin-bottom:8px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.scard-val{font-size:26px;font-weight:700;color:var(--txt)}
+.scard-sub{font-size:12px;color:var(--txt2);margin-top:4px}
+.chart-card{background:var(--bg);border:1px solid var(--brd);border-radius:var(--rl);padding:16px 20px;margin-bottom:20px}
+.chart-card h3{font-size:13px;font-weight:600;color:var(--txt2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em}
+
+/* MODAL */
+.modbg{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:32px 16px;overflow-y:auto}
+.modbg.on{display:flex}
+.mod{background:var(--bg);border-radius:var(--rl);border:1px solid var(--brd2);padding:24px;width:600px;max-width:100%;position:relative;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.mod-lg{width:780px}
+.mod h2{font-size:16px;font-weight:700;margin-bottom:18px;color:var(--txt);padding-right:32px;line-height:1.3}
+.xbtn{position:absolute;right:16px;top:16px;font-size:20px;cursor:pointer;color:var(--txt2);background:none;border:none;line-height:1;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.xbtn:hover{background:var(--bg2)}
+.fr{margin-bottom:14px}
+.fr label{display:block;font-size:12px;color:var(--txt2);margin-bottom:5px;font-weight:600}
+.fr input,.fr select,.fr textarea{width:100%;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none;transition:border .15s}
+.fr input:focus,.fr select:focus,.fr textarea:focus{border-color:var(--grn)}
+.fr input[readonly]{background:var(--bg2);color:var(--txt2)}
+.fr textarea{min-height:56px;resize:vertical}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:500px){.fg{grid-template-columns:1fr}}
+.mact{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:16px;border-top:1px solid var(--brd)}
+.mact-l{justify-content:space-between}
+
+/* INFO/WARN BLOCKS */
+.sinfo{background:var(--bg2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:13px;border:1px solid var(--brd);line-height:1.7}
+.sinfo strong{font-weight:700;display:block;margin-bottom:4px}
+.warn-box{background:var(--amb2);border:1px solid #EF9F27;border-radius:var(--r);padding:12px 14px;font-size:13px;margin-bottom:14px;color:var(--amb3)}
+.warn-box strong{font-weight:700}
+
+/* INLINE EDIT */
+.kh-item{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:var(--r);margin-bottom:8px}
+.kh-item input{flex:1;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);min-width:60px}
+.kh-item .kh-name{flex:2;font-weight:500;font-size:13px}
+.kh-item .kh-am{color:var(--grn);font-weight:600;font-size:13px;flex:1;text-align:right}
+.kh-rm{background:none;border:none;cursor:pointer;color:var(--txt3);font-size:16px;padding:2px 4px}
+.kh-rm:hover{color:var(--red)}
+.kh-add{display:flex;align-items:center;gap:8px;padding:8px 0}
+
+/* LOGIN SCREEN */
+.login-screen{position:fixed;inset:0;background:var(--bg3);display:flex;align-items:center;justify-content:center;z-index:1000}
+.login-box{background:var(--bg);border:1px solid var(--brd2);border-radius:var(--rl);padding:32px 36px;width:360px;box-shadow:0 8px 32px rgba(0,0,0,.1)}
+.login-logo{width:40px;height:40px;background:var(--grn);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;margin:0 auto 16px}
+.login-title{font-size:18px;font-weight:700;color:var(--txt);text-align:center;margin-bottom:4px}
+.login-sub{font-size:13px;color:var(--txt2);text-align:center;margin-bottom:24px}
+.login-error{font-size:13px;color:var(--red3);background:var(--red2);padding:8px 12px;border-radius:var(--r);margin-bottom:14px;display:none}
+.login-user-badge{display:flex;align-items:center;gap:8px;background:var(--bg2);border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600}
+.login-user-badge .role-tag{font-size:11px;color:var(--txt2);font-weight:400}
+.lock-overlay{position:absolute;inset:0;background:rgba(248,247,245,.85);border-radius:var(--rl);display:flex;align-items:center;justify-content:center;z-index:10;flex-direction:column;gap:8px}
+.lock-overlay p{font-size:13px;color:var(--txt2);font-weight:500}
+.sec-wrap{position:relative}
+
+/* DIVIDER */
+.divider{border:none;border-top:1px solid var(--brd);margin:16px 0}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1a1a1a;color:#fff;padding:11px 18px;border-radius:var(--r);font-size:13px;font-weight:500;z-index:500;opacity:0;transform:translateY(8px);transition:all .22s;max-width:340px;line-height:1.5}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.err{background:var(--red3)}
+
+/* MONTH NAV */
+.month-nav{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.month-nav button{background:none;border:1px solid var(--brd2);border-radius:var(--r);padding:5px 12px;cursor:pointer;color:var(--txt2);font-size:13px}
+.month-nav button:hover{background:var(--bg2)}
+.month-nav span{font-size:15px;font-weight:700;color:var(--txt)}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-l">
+    <div class="logo">⇄</div>
+    <div>
+      <div class="hdr-title">Quản lý dòng tiền CK 3 bên</div>
+      <div class="hdr-sub">KH → Tài khoản Sup/MH (không qua trung gian)</div>
+    </div>
+  </div>
+  <div class="hdr-r">
+    <div class="login-user-badge" id="user-badge">
+      <span id="user-name-disp">—</span>
+      <span class="role-tag" id="user-role-disp"></span>
+    </div>
+    <div id="locked-ind" class="locked-badge" style="display:none">🔒 Một số tab bị khóa</div>
+    <button class="btn" onclick="if(confirm('Xoá toàn bộ công nợ đã nhập?\n(Danh sách đối tác sẽ được giữ lại)')){localStorage.removeItem(LS_KEY);D.sup=[];D.kh=[];D.ck=[];D.ctr=1;rd0();rt1();rt2();rt4();toast('Đã xoá toàn bộ data giao dịch')}" style="font-size:12px;color:var(--txt3);border-color:var(--brd)">🗑 Reset data</button>
+    <button class="btn" onclick="doLogout()" style="font-size:12px">Đăng xuất</button>
+    <button class="btn" id="btn-chot" onclick="if(confirm('Chốt phiên? Tất cả khoản chưa Done sẽ bị Cancelled.'))runChotPhien(false)" style="font-size:12px;display:none;background:var(--amb2);border-color:var(--amb);color:var(--amb3);font-weight:600">⏰ Chốt phiên</button>
+  </div>
+</div>
+
+<!-- LAYOUT: sidebar + content -->
+<div class="layout">
+
+<!-- SIDEBAR -->
+<nav class="sidebar" id="tabs-bar">
+  <div class="sidebar-section">
+    <div class="sidebar-label">Menu</div>
+    <div class="tab on" data-tab="t0" onclick="go('t0')"><span class="tab-icon">📊</span><span class="tab-lbl">Tổng quan</span><span class="tab-lock"></span></div>
+    <div class="sidebar-divider"></div>
+    <div class="tab" data-tab="t1" data-roles="admin,mh" onclick="go('t1')"><span class="tab-icon">💸</span><span class="tab-lbl">Công nợ Sup/MH</span><span class="tab-lock"></span></div>
+    <div class="tab" data-tab="t2" data-roles="admin,sale" onclick="go('t2')"><span class="tab-icon">💰</span><span class="tab-lbl">Công nợ KH</span><span class="tab-lock"></span></div>
+    <div class="sidebar-divider"></div>
+    <div class="tab" data-tab="t3" onclick="go('t3')"><span class="tab-icon">📗</span><span class="tab-lbl">Tracking CK</span><span class="tab-lock"></span><span id="noti-badge" style="display:none;background:#E24B4A;color:#fff;border-radius:20px;font-size:11px;font-weight:700;padding:1px 7px;margin-left:auto"></span></div>
+    <div class="sidebar-divider"></div>
+    <div class="tab" data-tab="t4" onclick="go('t4')"><span class="tab-icon">📌</span><span class="tab-lbl">Danh sách đối tác</span><span class="tab-lock"></span></div>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<div class="body">
+
+<!-- ===== TAB 0: DASHBOARD ===== -->
+<div id="t0" class="sec on">
+  <div class="month-nav">
+    <button onclick="changeMonth(-1)">◀</button>
+    <span id="month-label">Tháng 6/2026</span>
+    <button onclick="changeMonth(1)">▶</button>
+  </div>
+  <div style="display:flex;justify-content:center;margin-bottom:16px">
+    <div class="scard" style="text-align:center;padding:12px 24px;display:inline-block">
+    <div>
+      <div class="scard-title">📊 TỔNG SỐ TIỀN ĐÃ CK (tháng)</div>
+      <div class="scard-val" id="d-all-total">0đ</div>
+      <div class="scard-sub" id="d-all-count">0 giao dịch (Sup + MH)</div>
+    </div>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h3>📈 Số tiền CK theo ngày — <span style="color:#185FA5">■ Sup</span> &nbsp; <span style="color:#0f6e56">■ MH</span></h3>
+    <canvas id="chart-daily" height="110"></canvas>
+  </div>
+</div>
+
+<!-- ===== TAB 1: CÔNG NỢ SUP/MH ===== -->
+<div id="t1" class="sec">
+  <div class="sec-wrap" id="t1-wrap">
+  <div class="toolbar">
+    <select id="f1s" onchange="rt1()"><option value="">Tất cả tình trạng</option><option>Chờ điều phối</option><option>Đã điều phối</option><option>CK 1 phần</option><option>Done</option><option>CK dư</option><option>Cancelled</option></select>
+    <select id="f1t" onchange="rt1()"><option value="">Tất cả loại</option><option>Sup</option><option>Mua hộ</option></select>
+    <select id="f1nv" onchange="rt1()"><option value="">Tất cả NV</option></select>
+    <input id="f1q" placeholder="🔍 Tìm tên đối tác..." oninput="rt1()" list="dl-partners">
+    <datalist id="dl-partners"></datalist>
+    <button class="btn btn-p" id="btn-add-sup" onclick="openM('msup')">+ Nhập công nợ</button>
+  </div>
+  <div class="tw"><table>
+    <thead><tr>
+    <th>Ngày</th><th>NV</th><th>Loại</th><th>Tên đối tác</th><th>Đặc điểm đòi tiền</th><th>Công nợ</th><th>STK nhận</th><th>ID CK</th><th>Đã CK</th><th>Tình trạng</th><th></th>
+  </tr></thead><tbody id="tb1"></tbody></table></div>
+  <div id="pg1" class="pgbar"></div>
+  </div>
+</div>
+
+<!-- ===== TAB 2: CÔNG NỢ KH ===== -->
+<div id="t2" class="sec">
+  <div class="sec-wrap" id="t2-wrap">
+  <div class="toolbar">
+    <select id="f2s" onchange="rt2()"><option value="">Tất cả tình trạng</option><option>Mới nhập</option><option>Chờ khách CK</option><option>Khách đã CK</option><option>Done</option><option>CK 1 phần</option><option>Cancelled</option></select>
+    <select id="f2nv" onchange="rt2()"><option value="">Tất cả NV</option></select>
+    <input id="f2q" placeholder="🔍 Tìm tên KH..." oninput="rt2()" list="dl-customers">
+    <datalist id="dl-customers"></datalist>
+    <button class="btn" id="btn-suggest" onclick="openSuggest()" style="background:var(--amb2);border-color:#EF9F27;color:var(--amb3);font-weight:600">💡 Match CK</button>
+    <button class="btn btn-p" id="btn-add-kh" onclick="openM('mkh')">+ Nhập công nợ KH</button>
+  </div>
+  <div class="tw"><table>
+    <thead><tr>
+    <th>Ngày</th><th>NV</th><th>Tên KH + SĐT</th><th>Đặc điểm bank</th><th>Công nợ gốc</th><th>ID CK</th><th>Tài khoản nhận (Sup/MH)</th><th>Chỉ định</th><th>Tình trạng</th><th>Bill CK</th><th>Điều phối</th>
+  </tr></thead><tbody id="tb2"></tbody></table></div>
+  <div id="pg2" class="pgbar"></div>
+  </div>
+</div>
+
+<!-- ===== TAB 3: TRACKING CK (was t4) ===== -->
+<div id="t3" class="sec">
+  <div class="toolbar">
+    <select id="f4s" onchange="rt4()"><option value="">Tất cả tình trạng</option><option>Chờ XN & Đã tham chiếu HT</option><option>Đã XN & Nhập file Sup/MH</option><option>Done</option></select>
+    <select id="f4nv" onchange="rt4()"><option value="">Tất cả NV</option></select>
+    <input id="f4q" placeholder="🔍 Tìm tên KH..." oninput="rt4()">
+    <button class="btn btn-p" id="btn-add-ck" onclick="openM('mck')">+ Nhập bill CK</button>
+  </div>
+  <div class="tw"><table>
+    <thead><tr>
+    <th>Ngày</th><th>NV</th><th>Tên KH + SĐT</th><th>ID CK</th><th>Đối tác nhận (Sup/MH)</th><th>Số tiền</th><th>Bill CK</th><th>Tình trạng</th><th>Hành động</th><th></th>
+  </tr></thead><tbody id="tb4"></tbody></table></div>
+  <div id="pg4" class="pgbar"></div>
+</div>
+
+<!-- ===== TAB 4: DANH SÁCH ĐỐI TÁC (was t5) ===== -->
+<div id="t4" class="sec">
+  <div class="toolbar">
+    <button class="btn btn-p" onclick="openM('m-add-partner')">+ Thêm Sup/MH</button>
+    <button class="btn" onclick="openM('m-add-kh-char')">+ Thêm KH</button>
+    <select id="f5type" onchange="rt5()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none">
+      <option value="">Tất cả đối tác</option>
+      <option value="Sup">Sup</option>
+      <option value="Mua hộ">Mua hộ</option>
+      <option value="KH">Khách Hàng</option>
+    </select>
+    <select id="f5ch" onchange="rt5()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none">
+      <option value="">Tất cả kênh</option>
+      <option value="Linh Duong">Linh Duong</option>
+      <option value="Linh Thảo">Linh Thảo</option>
+      <option value="Checkout">Checkout</option>
+    </select>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <span style="font-size:15px;color:var(--txt2)">🔎</span>
+      <input id="f5q" placeholder="Tìm tên..." oninput="rt5()" style="font-size:13px;padding:6px 10px;border-radius:8px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none;width:180px">
+    </div>
+  </div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">Đặc điểm đối tác Sup/MH</div>
+  <div class="tw" style="margin-bottom:24px"><table><thead><tr>
+    <th>Loại</th><th>Tên đối tác</th><th>Thời gian y/c bank</th><th>Số tiền y/c</th><th>STK mặc định</th><th></th>
+  </tr></thead><tbody id="tb5a"></tbody></table></div>
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px">Đặc điểm khách hàng</div>
+  <div class="tw"><table><thead><tr>
+    <th>Kênh</th><th>Tên KH + SĐT</th><th>Thời gian bank</th><th>Số tiền bank</th><th></th>
+  </tr></thead><tbody id="tb5b"></tbody></table></div>
+</div>
+
+</div><!-- /body -->
+</div><!-- /layout -->
+</div><!-- /app -->
+
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-screen" id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">⇄</div>
+    <div class="login-title">Quản lý dòng tiền CK</div>
+    <div class="login-sub">Đăng nhập để tiếp tục</div>
+    <div class="login-error" id="login-error">Sai tên đăng nhập hoặc mật khẩu</div>
+    <div class="fr"><label>Tên đăng nhập</label><input id="login-user" placeholder="username" autocomplete="username" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <div class="fr"><label>Mật khẩu</label><input id="login-pass" type="password" placeholder="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+    <button class="btn btn-p" onclick="doLogin()" style="width:100%;margin-top:8px;justify-content:center">Đăng nhập</button>
+  </div>
+</div>
+
+<!-- ===== MODAL: NHẬP SUP/MH ===== -->
+<div class="modbg" id="msup">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('msup')">×</button>
+  <h2>Nhập công nợ Sup/MH</h2>
+  <div class="fg">
+    <div class="fr"><label>Ngày</label><input type="date" id="i_sd"/></div>
+    <div class="fr"><label>Nhân viên</label><input id="i_snv" placeholder="Tên nhân viên"/></div>
+  </div>
+  <div class="fg">
+    <div class="fr"><label>Loại đối tác</label>
+      <select id="i_st" onchange="onSupTypeChange()"><option>Sup</option><option>Mua hộ</option></select>
+    </div>
+    <div class="fr"><label>Tên đối tác</label>
+      <input id="i_sn" placeholder="Chọn hoặc nhập tên..." list="dl-p-sup" oninput="onSupNameInput()"/>
+      <datalist id="dl-p-sup"></datalist>
+    </div>
+  </div>
+  <div id="sup_char_info" style="display:none;margin-top:-8px;margin-bottom:12px;padding:10px 12px;background:var(--pur2);border:1px solid #AFA9EC;border-radius:var(--r);font-size:13px;line-height:1.8">
+    <div style="font-size:11px;font-weight:700;color:var(--pur3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">📋 Đặc điểm đòi tiền</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><span style="color:var(--txt2);font-size:12px">Thời gian y/c bank:</span> <span id="sc_tm" style="font-weight:600"></span></div>
+      <div><span style="color:var(--txt2);font-size:12px">Số tiền y/c:</span> <span id="sc_am" style="font-weight:700;color:var(--pur3)"></span></div>
+    </div>
+  </div>
+  <div id="sup_new_fields" style="display:none;margin-top:-8px;margin-bottom:12px;padding:12px;background:var(--amb2);border:1px solid #EF9F27;border-radius:var(--r)">
+    <div style="font-size:11px;font-weight:700;color:var(--amb3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">✨ Đối tác mới — bổ sung đặc điểm</div>
+    <div class="fg">
+      <div class="fr" style="margin-bottom:0">
+        <label>Thời gian y/c bank</label>
+        <select id="i_s_tm">
+          <option value="">-- Chọn --</option>
+          <option value="Trong ngày">Trong ngày</option>
+          <option value="Max 3 ngày">Max 3 ngày</option>
+          <option value="Không giục">Không giục</option>
+        </select>
+      </div>
+      <div class="fr" style="margin-bottom:0">
+        <label>Số tiền y/c bank</label>
+        <select id="i_s_am">
+          <option value="">-- Chọn --</option>
+          <option value="Đúng công nợ">Đúng công nợ</option>
+          <option value="Min 20 triệu">Min 20 triệu</option>
+          <option value="Không y/c min">Không y/c min</option>
+        </select>
+      </div>
+    </div>
+  </div>
+  <div class="fr"><label>Công nợ (VNĐ)</label><input type="text" id="i_sa" placeholder="Số tiền" oninput="formatCurrencyInput(this)"/></div>
+  <div class="fr"><label>STK nhận tiền (Ngân hàng – STK – Tên chủ TK – ND CK)</label>
+    <textarea id="i_ss" placeholder="VD: Techcombank 888888879 Nguyen cong Phuoc ND: NL" rows="2"></textarea>
+  </div>
+  <div class="fr"><label>Ghi chú</label><input id="i_snote" placeholder="Ghi chú nếu có"/></div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('msup')">Hủy</button>
+    <button class="btn btn-p" onclick="saveSup()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: NHẬP KH ===== -->
+<div class="modbg" id="mkh">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('mkh')">×</button>
+  <h2>Nhập công nợ khách hàng</h2>
+  <div class="fg">
+    <div class="fr"><label>Ngày</label><input type="date" id="i_kd"/></div>
+    <div class="fr"><label>Nhân viên</label><input id="i_knv" placeholder="Tên nhân viên"/></div>
+  </div>
+  <div class="fr"><label>Tên KH + SĐT (theo hệ thống)</label>
+    <input id="i_kn" placeholder="VD: Nguyễn Văn A - 0901234567" list="dl-kh-list" oninput="onKhNameInput()"/>
+    <datalist id="dl-kh-list"></datalist>
+  </div>
+  <div id="kh_char_info" style="display:none;margin-top:-8px;margin-bottom:12px;padding:10px 12px;background:var(--grn2);border:1px solid var(--grn4);border-radius:var(--r);font-size:13px;line-height:1.8">
+    <div style="font-size:11px;font-weight:700;color:var(--grn3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">📋 Đặc điểm thanh toán</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+      <div><span style="color:var(--txt2);font-size:12px">Kênh:</span> <span id="kc_ch" style="font-weight:600"></span></div>
+      <div><span style="color:var(--txt2);font-size:12px">Thời gian bank:</span> <span id="kc_tm" style="font-weight:600"></span></div>
+      <div style="grid-column:span 2"><span style="color:var(--txt2);font-size:12px">Số tiền bank thường:</span> <span id="kc_am" style="font-weight:700;color:var(--grn3)"></span></div>
+    </div>
+  </div>
+  <div id="kh_new_fields" style="display:none;margin-top:-8px;margin-bottom:12px;padding:12px;background:var(--amb2);border:1px solid #EF9F27;border-radius:var(--r)">
+    <div style="font-size:11px;font-weight:700;color:var(--amb3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">✨ Khách hàng mới — bổ sung đặc điểm</div>
+    <div class="fg">
+      <div class="fr" style="margin-bottom:8px">
+        <label>Kênh</label>
+        <select id="i_k_ch">
+          <option value="">-- Chọn --</option>
+          <option value="Checkout">Checkout</option>
+          <option value="Linh Duong">Linh Duong</option>
+          <option value="Linh Thảo">Linh Thảo</option>
+          <option value="Khác">Khác</option>
+        </select>
+      </div>
+      <div class="fr" style="margin-bottom:8px">
+        <label>Thời gian bank</label>
+        <select id="i_k_tm">
+          <option value="">-- Chọn --</option>
+          <option value="Trong ngày">Trong ngày</option>
+          <option value="1-2 ngày">1-2 ngày</option>
+          <option value="3-5 ngày">3-5 ngày</option>
+          <option value="Giục nhiều lần">Giục nhiều lần</option>
+        </select>
+      </div>
+    </div>
+    <div class="fr" style="margin-bottom:0">
+      <label>Số tiền thường bank</label>
+      <select id="i_k_am">
+        <option value="">-- Chọn --</option>
+        <option value="&lt; 10 triệu">&lt; 10 triệu</option>
+        <option value="Min 10 triệu">Min 10 triệu</option>
+        <option value="20 - 30 triệu">20 - 30 triệu</option>
+        <option value="30 - 50 triệu">30 - 50 triệu</option>
+        <option value="Đúng công nợ">Đúng công nợ</option>
+      </select>
+    </div>
+  </div>
+  <div class="fr"><label>Công nợ (VNĐ)</label><input type="text" id="i_ka" placeholder="Số tiền" oninput="formatCurrencyInput(this)"/></div>
+  <div class="fr"><label>Ghi chú</label><input id="i_knote" placeholder="Ghi chú"/></div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('mkh')">Hủy</button>
+    <button class="btn btn-p" onclick="saveKH()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: NHẬP BILL CK ===== -->
+<div class="modbg" id="mck">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('mck')">×</button>
+  <h2>Nhập bill chuyển khoản từ KH</h2>
+  <div class="fg">
+    <div class="fr"><label>Ngày CK</label><input type="date" id="i_cd"/></div>
+    <div class="fr"><label>Nhân viên nhập</label><input id="i_cnv" placeholder="Tên NV"/></div>
+  </div>
+  <div class="fr"><label>ID CK (chọn từ danh sách đã điều phối)</label>
+    <select id="i_cid" onchange="onCidChange()">
+      <option value="">-- Chọn ID CK --</option>
+    </select>
+  </div>
+  <div id="cid_info" style="font-size:12px;color:var(--txt2);padding:8px 10px;background:var(--bg2);border-radius:6px;margin-bottom:12px;display:none;line-height:1.7"></div>
+  <div class="fr"><label>Tên KH + SĐT</label>
+    <input id="i_ckh" placeholder="Tên KH - SĐT" list="dl-kh-ck"/>
+    <datalist id="dl-kh-ck"></datalist>
+  </div>
+  <div class="fr"><label>Link ảnh bill CK</label>
+    <div style="display:flex;gap:6px">
+      <input id="i_clink" placeholder="https://prnt.sc/..." style="flex:1"/>
+      <button class="btn btn-sm" onclick="previewLink()">👁 Xem</button>
+      <button class="btn btn-sm" onclick="copyLink()">📋 Copy</button>
+    </div>
+  </div>
+  <div class="fr"><label>Số tiền đã CK (VNĐ)</label><input type="text" id="i_cam" placeholder="Số tiền" oninput="formatCurrencyInput(this)"/></div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('mck')">Hủy</button>
+    <button class="btn btn-p" onclick="saveCK()">💾 Lưu bill</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: ĐIỀU PHỐI (Gán + Phân công KH) ===== -->
+<div class="modbg" id="mdp">
+<div class="mod mod-lg">
+  <button class="xbtn" onclick="closeM('mdp')">×</button>
+  <h2 id="dptitle">Điều phối CK</h2>
+  <div id="dp_warn" class="warn-box" style="display:none">
+    <strong>⚠ Khoản này đã có ID CK.</strong> Bạn đang chỉnh sửa sau khi đã điều phối. Vui lòng xác nhận đã thông báo cho Sale/CSKH trước khi thay đổi.
+    <div style="margin-top:10px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" id="dp_confirm_edit"> Tôi đã hỏi và được xác nhận từ Sale/CSKH
+      </label>
+    </div>
+  </div>
+  <div id="dpcontent"></div>
+  <div id="dp_kh_section">
+    <hr class="divider">
+    <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--txt)">📌 Gán khách hàng sẽ CK vào tài khoản này</div>
+    <div id="dp_kh_list"></div>
+    <div class="kh-add">
+      <input id="dp_kh_new" placeholder="Chọn hoặc nhập tên KH + SĐT..." list="dl-kh-dp" style="flex:1;font-size:13px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none"/>
+      <datalist id="dl-kh-dp"></datalist>
+      <input type="number" id="dp_kh_am" placeholder="Số tiền chỉ định (VNĐ)" style="width:200px;font-size:13px;padding:7px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none"/>
+      <button class="btn btn-p btn-sm" onclick="addKhToDp()">+ Gán KH</button>
+    </div>
+    <div style="font-size:12px;color:var(--txt2);margin-top:4px">💡 Nếu 1 KH nợ 20tr muốn chia 2 lần → gán 2 lần với 2 số tiền khác nhau, hệ thống tự tách thành 2 khoản CN KH.</div>
+  </div>
+  <div class="mact mact-l">
+    <button class="btn btn-danger btn-sm" id="dp_cancel_btn" onclick="cancelDp()" style="display:none">🗑 Hủy khoản này</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="closeM('mdp')">Đóng</button>
+      <button class="btn btn-p" id="dp_save_btn" onclick="execDp()">✅ Xác nhận điều phối</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: ADD PARTNER ===== -->
+<div class="modbg" id="m-add-partner">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('m-add-partner')">×</button>
+  <h2>Thêm đối tác Sup/MH</h2>
+  <div class="fg">
+    <div class="fr"><label>Loại</label><select id="ap_type"><option>Sup</option><option>Mua hộ</option></select></div>
+    <div class="fr"><label>Tên đối tác</label><input id="ap_name" placeholder="Tên"/></div>
+  </div>
+  <div class="fr"><label>STK nhận tiền mặc định</label><textarea id="ap_stk" placeholder="Ngân hàng - STK - Chủ TK - ND CK" rows="2"></textarea></div>
+  <div class="fg">
+    <div class="fr"><label>Thời gian y/c bank</label>
+      <select id="ap_tm"><option>Trong ngày</option><option>2-3 ngày</option><option>Không dí</option><option>Bank trước</option></select>
+    </div>
+    <div class="fr"><label>Số tiền y/c</label>
+      <select id="ap_am"><option>Đúng số công nợ</option><option>Min 30tr</option><option>Thế nào cũng ok</option></select>
+    </div>
+  </div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-add-partner')">Hủy</button>
+    <button class="btn btn-p" onclick="savePartner()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: ADD KH CHAR ===== -->
+<div class="modbg" id="m-add-kh-char">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('m-add-kh-char')">×</button>
+  <h2>Thêm khách hàng</h2>
+  <div class="fg">
+    <div class="fr"><label>Kênh</label><select id="ac_ch"><option>Checkout</option><option>Linh Duong</option><option>Linh Thảo</option><option>Khác</option></select></div>
+    <div class="fr"><label>Tên KH + SĐT</label><input id="ac_name" placeholder="VD: Kim Hân - 0949667724"/></div>
+  </div>
+  <div class="fg">
+    <div class="fr"><label>Thời gian bank</label>
+      <select id="ac_tm">
+        <option value="">-- Chọn --</option>
+        <option value="Trong ngày">Trong ngày</option>
+        <option value="1-2 ngày">1-2 ngày</option>
+        <option value="3-5 ngày">3-5 ngày</option>
+        <option value="Giục nhiều lần">Giục nhiều lần</option>
+      </select>
+    </div>
+    <div class="fr"><label>Số tiền bank</label>
+      <select id="ac_am">
+        <option value="">-- Chọn --</option>
+        <option value="&lt; 10 triệu">&lt; 10 triệu</option>
+        <option value="Min 10 triệu">Min 10 triệu</option>
+        <option value="20 - 30 triệu">20 - 30 triệu</option>
+        <option value="30 - 50 triệu">30 - 50 triệu</option>
+        <option value="Đúng công nợ">Đúng công nợ</option>
+      </select>
+    </div>
+  </div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-add-kh-char')">Hủy</button>
+    <button class="btn btn-p" onclick="saveKhChar()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: GỢI Ý GHÉP PHIÊN ===== -->
+<div class="modbg" id="m-suggest">
+<div class="mod" style="width:820px;max-width:97vw">
+  <button class="xbtn" onclick="closeM('m-suggest')">×</button>
+  <h2>💡 Match CK — <span id="sug-session-label"></span></h2>
+  <div class="sinfo" style="margin-bottom:14px">
+    Hệ thống tự match KH ↔ Sup/MH dựa trên <b>tổng số tiền</b> và <b>đặc điểm bank</b> (thời gian KH vs y/c Sup). Điểm match càng cao càng phù hợp. Admin xem xét và <b>Chấp nhận</b> hoặc <b>Bỏ qua</b> từng gợi ý.
+  </div>
+  <div id="sug-content"></div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-suggest')">Đóng</button>
+    <button class="btn btn-p" id="sug-accept-all-btn" onclick="acceptAllSuggestions()">✅ Chấp nhận tất cả</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: EDIT PARTNER ===== -->
+<div class="modbg" id="m-edit-partner">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('m-edit-partner')">×</button>
+  <h2>Sửa đặc điểm Sup/MH</h2>
+  <input type="hidden" id="ep_idx">
+  <div class="fg">
+    <div class="fr"><label>Loại</label><select id="ep_type"><option>Sup</option><option>Mua hộ</option></select></div>
+    <div class="fr"><label>Tên</label><input id="ep_name"/></div>
+  </div>
+  <div class="fr"><label>STK nhận tiền</label><textarea id="ep_stk" rows="2"></textarea></div>
+  <div class="fg">
+    <div class="fr"><label>Thời gian y/c bank</label>
+      <select id="ep_tm"><option>Trong ngày</option><option>Max 3 ngày</option><option>Không giục</option></select>
+    </div>
+    <div class="fr"><label>Số tiền y/c</label>
+      <select id="ep_am"><option>Đúng công nợ</option><option>Min 20 triệu</option><option>Không y/c min</option></select>
+    </div>
+  </div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-edit-partner')">Hủy</button>
+    <button class="btn btn-p" onclick="saveEditPartner()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: EDIT KH CHAR ===== -->
+<div class="modbg" id="m-edit-kh-char">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('m-edit-kh-char')">×</button>
+  <h2>Sửa đặc điểm khách hàng</h2>
+  <input type="hidden" id="ek_idx">
+  <div class="fg">
+    <div class="fr"><label>Kênh</label><select id="ek_ch"><option>Checkout</option><option>Linh Duong</option><option>Linh Thảo</option><option>Khác</option></select></div>
+    <div class="fr"><label>Tên KH + SĐT</label><input id="ek_name"/></div>
+  </div>
+  <div class="fg">
+    <div class="fr"><label>Thời gian bank</label>
+      <select id="ek_tm"><option>Trong ngày</option><option>1-2 ngày</option><option>3-5 ngày</option><option>Giục nhiều lần</option></select>
+    </div>
+    <div class="fr"><label>Số tiền bank</label>
+      <select id="ek_am"><option>&lt; 10 triệu</option><option>Min 10 triệu</option><option>20 - 30 triệu</option><option>30 - 50 triệu</option><option>Đúng công nợ</option></select>
+    </div>
+  </div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-edit-kh-char')">Hủy</button>
+    <button class="btn btn-p" onclick="saveEditKhChar()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<!-- ===== MODAL: SỬA BILL CK ===== -->
+<div class="modbg" id="m-edit-ck">
+<div class="mod">
+  <button class="xbtn" onclick="closeM('m-edit-ck')">×</button>
+  <h2>Sửa bill chuyển khoản</h2>
+  <input type="hidden" id="eck_idx">
+  <div class="fg">
+    <div class="fr"><label>Ngày CK</label><input type="date" id="eck_date"/></div>
+    <div class="fr"><label>Nhân viên</label><input id="eck_nv"/></div>
+  </div>
+  <div class="fr"><label>ID CK</label><select id="eck_cid" onchange="onEckCidChange()"><option value="">-- Chọn --</option></select></div>
+  <div id="eck_cid_info" style="font-size:12px;color:var(--txt2);padding:6px 10px;background:var(--bg2);border-radius:6px;margin-bottom:10px;display:none"></div>
+  <div class="fr"><label>Tên KH + SĐT</label><input id="eck_kh" list="dl-kh-ck2"/><datalist id="dl-kh-ck2"></datalist></div>
+  <div class="fr"><label>Link ảnh bill CK</label>
+    <div style="display:flex;gap:6px">
+      <input id="eck_link" placeholder="https://prnt.sc/..." style="flex:1"/>
+      <button class="btn btn-sm" onclick="if(el('eck_link').value)window.open(el('eck_link').value,'_blank','noopener')">👁</button>
+    </div>
+  </div>
+  <div class="fr"><label>Số tiền (VNĐ)</label><input type="text" id="eck_am" oninput="formatCurrencyInput(this)"/></div>
+  <div class="fr"><label>Tình trạng</label>
+    <select id="eck_status">
+      <option>Chờ XN & Đã tham chiếu HT</option>
+      <option>Đã XN & Nhập file Sup/MH</option>
+      <option>Đã XN & Nhập file Sup/MH</option>
+      <option>Done</option>
+    </select>
+  </div>
+  <div class="mact">
+    <button class="btn" onclick="closeM('m-edit-ck')">Hủy</button>
+    <button class="btn btn-p" onclick="saveEditCK()">💾 Lưu</button>
+  </div>
+</div>
+</div>
+
+<div id="noti-popup" style="display:none;position:fixed;bottom:24px;left:220px;z-index:300;width:280px;background:var(--bg);border:1.5px solid #E24B4A;border-radius:var(--rl);box-shadow:0 4px 20px rgba(0,0,0,.12);overflow:hidden">
+  <div style="background:#E24B4A;padding:10px 14px;display:flex;align-items:center;gap:8px">
+    <span style="font-size:16px">🔔</span>
+    <span style="font-size:13px;font-weight:700;color:#fff">Cần xác nhận</span>
+    <button onclick="closeNotiPopup()" style="margin-left:auto;background:none;border:none;cursor:pointer;color:#fff;font-size:18px;line-height:1;padding:0">×</button>
+  </div>
+  <div style="padding:14px 16px">
+    <div id="noti-msg" style="font-size:13px;color:var(--txt);line-height:1.6;margin-bottom:12px"></div>
+    <button onclick="goToTracking()" style="width:100%;background:var(--grn);border:none;border-radius:var(--r);color:#fff;padding:8px;font-size:13px;font-weight:600;cursor:pointer">Đến Tracking CK →</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================================================
+   DATA STORE
+   ================================================ */
+let D = {
+  sup: [],
+  kh: [],
+  ck: [],
+  partners: [],
+  khChars: [],
+  ctr: 1,
+  viewMonth: new Date().getMonth(),
+  viewYear: new Date().getFullYear(),
+  pg1: 0, pg2: 0, pg4: 0  // current page per tab
+};
+
+let dpSupId = null;
+let dpKhItems = []; // [{name, amount}]
+/* ================================================
+   USER ACCOUNTS & LOGIN
+   ================================================ */
+const USERS = [
+  {user:'duong',  pass:'duong123',  name:'Dzuong', role:'admin'},
+  {user:'trang',  pass:'trang123',  name:'Trang',  role:'mh'},
+  {user:'hue',    pass:'hue123',    name:'Huệ',    role:'mh'},
+  {user:'binh',   pass:'binh123',   name:'Bình',   role:'sale'},
+  {user:'thao',   pass:'thao123',   name:'Thảo',   role:'sale'},
+  {user:'thuy',   pass:'thuy123',   name:'Thuỷ',   role:'sale'},
+  {user:'tam',    pass:'tam123',    name:'Tâm',    role:'sale'},
+  {user:'ketoan', pass:'ketoan123', name:'Tuyền',  role:'kt'},
+];
+const ROLE_LABELS = {admin:'Admin',mh:'Mua hàng',sale:'Sale/CSKH',kt:'Kế toán'};
+
+let currentUser = null;
+let currentRole = 'admin';
+
+function doLogin(){
+  const u = (el('login-user').value||'').trim().toLowerCase();
+  const p = (el('login-pass').value||'').trim();
+  const found = USERS.find(x=>x.user===u && x.pass===p);
+  if(!found){
+    el('login-error').style.display='block';
+    el('login-pass').value='';
+    return;
+  }
+  el('login-error').style.display='none';
+  currentUser = found;
+  currentRole = found.role;
+  el('user-name-disp').textContent = found.name;
+  el('user-role-disp').textContent = ROLE_LABELS[found.role]||found.role;
+  el('login-screen').style.display='none';
+  el('login-user').value='';
+  el('login-pass').value='';
+  applyRole();
+  loadSample();
+  const btnChot = el('btn-chot');
+  if(btnChot) btnChot.style.display = found.role === 'admin' ? '' : 'none';
+  updateNoti();
+  showNotiPopup();
+}
+
+/* ================================================
+   NOTIFICATION SYSTEM
+   ================================================ */
+function countPendingActions(){
+  const actions = ROLE_TRACK_ACTIONS[currentRole] || [];
+  return D.ck.filter(c=>{
+    if(actions.includes('supxn')    && c.status==='Chờ XN & Đã tham chiếu HT') return true;
+    if(actions.includes('duyet')    && c.status==='Đã XN & Nhập file Sup/MH')  return true;
+    return false;
+  }).length;
+}
+
+function updateNoti(){
+  const count = countPendingActions();
+  const badge = el('noti-badge');
+  if(!badge) return;
+  if(count > 0){
+    badge.textContent = count;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+    closeNotiPopup();
+  }
+}
+
+function showNotiPopup(){
+  const count = countPendingActions();
+  if(count === 0) return;
+  const actions = ROLE_TRACK_ACTIONS[currentRole] || [];
+  let action = actions.includes('supxn') ? 'xác nhận Sup/MH XN' : 'duyệt payment';
+  el('noti-msg').textContent = `Có ${count} khoản đang chờ bạn ${action}.`;
+  el('noti-popup').style.display = '';
+}
+
+function closeNotiPopup(){
+  el('noti-popup').style.display = 'none';
+}
+
+function goToTracking(){
+  closeNotiPopup();
+  go('t3');
+}
+
+function doLogout(){
+  currentUser = null;
+  currentRole = 'admin';
+  closeNotiPopup();
+  const badge = el('noti-badge');
+  if(badge) badge.style.display = 'none';
+  el('login-screen').style.display='flex';
+  el('login-user').value='';
+  el('login-pass').value='';
+}
+
+/* ================================================
+   ROLE PERMISSIONS
+   ================================================ */
+const ROLE_TABS = {
+  admin: ['t0','t1','t2','t3','t4'],
+  mh:   ['t0','t1','t3','t4'],
+  sale: ['t0','t2','t3','t4'],
+  kt:   ['t0','t3','t4']
+};
+// Tracking: which actions each role can do (column Hành động)
+// sale: nhập bill CK
+// mh: xác nhận Sup/MH đã nhận
+// kt: tham chiếu + duyệt payment
+const ROLE_TRACK_ACTIONS = {
+  admin: ['bill','supxn','duyet'],
+  sale:  ['bill'],
+  mh:    ['supxn'],
+  kt:    ['duyet']
+};
+
+function applyRole() {
+  const allowed = ROLE_TABS[currentRole];
+  const allTabs = document.querySelectorAll('.tab[data-tab]');
+  let anyLocked = false;
+  allTabs.forEach(t => {
+    const tid = t.dataset.tab;
+    const lockEl = t.querySelector('.tab-lock');
+    if (!allowed.includes(tid)) {
+      t.classList.add('tab-locked');
+      if(lockEl) lockEl.textContent = '🔒';
+      anyLocked = true;
+    } else {
+      t.classList.remove('tab-locked');
+      if(lockEl) lockEl.textContent = '';
+    }
+  });
+  document.getElementById('locked-ind').style.display = anyLocked ? '' : 'none';
+
+  const canAddSup = ['admin','mh'].includes(currentRole);
+  const canAddKh  = ['admin','sale'].includes(currentRole);
+  const canAddCk  = ['admin','sale'].includes(currentRole);
+  el('btn-add-sup') && (el('btn-add-sup').disabled = !canAddSup);
+  el('btn-add-kh')  && (el('btn-add-kh').disabled  = !canAddKh);
+  el('btn-add-ck')  && (el('btn-add-ck').disabled  = !canAddCk);
+
+  rt1(); rt2(); rt4();
+}
+
+/* ================================================
+   HELPERS
+   ================================================ */
+function el(id){ return document.getElementById(id); }
+function fmt(n){ if(!n && n!==0) return '—'; return Math.round(n).toLocaleString('en-US')+'đ'; }
+function fmtInput(n){ if(!n) return ''; return Math.round(n).toLocaleString('en-US'); }
+function formatCurrencyInput(input){
+  const raw = input.value.replace(/\D/g,'');
+  if(!raw){ input.value=''; return; }
+  input.value = parseInt(raw).toLocaleString('en-US');
+}
+function today(){ return new Date().toISOString().split('T')[0]; }
+function gid(tp){
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = String(d.getFullYear()).slice(-2);
+  const c  = String(D.ctr++).padStart(2,'0');
+  return (tp==='Sup'?'TD':'NL') + dd + mm + yy + c;
+}
+function toast(msg, isErr=false, dur=3500){
+  const t = el('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr?' err':'');
+  setTimeout(()=>t.classList.remove('show'), dur);
+}
+function openM(id){ el(id).classList.add('on'); }
+function closeM(id){
+  el(id).classList.remove('on');
+  if(id==='msup'){ ['i_snv','i_sn','i_sa','i_ss','i_snote'].forEach(x=>el(x).value=''); el('sup_char_info').style.display='none'; el('sup_new_fields').style.display='none'; }
+  if(id==='mkh'){  ['i_knv','i_kn','i_ka','i_knote'].forEach(x=>el(x).value='');       el('kh_char_info').style.display='none';  el('kh_new_fields').style.display='none'; }
+  if(id==='mck'){  ['i_cnv','i_ckh','i_clink','i_cam'].forEach(x=>el(x).value='');     el('cid_info').style.display='none'; }
+}
+
+function sb(s){
+  const m = {
+    'Chờ điều phối':'b-wait','Đã điều phối':'b-assigned','Done':'b-done',
+    'CK 1 phần':'b-part','CK dư':'b-over','Cancelled':'b-cancel',
+    'Chờ khách CK':'b-wait','Khách đã CK':'b-ckd','Mới nhập':'b-new',
+    'Chờ XN & Đã tham chiếu HT':'b-wait',
+    'Đã XN & Nhập file Sup/MH':'b-assigned',
+    'Pending':'b-new'
+  };
+  return `<span class="badge ${m[s]||'b-new'}">${s||'—'}</span>`;
+}
+
+function idbBadge(id){
+  return id ? `<span class="idb" title="Click để copy" onclick="copyText('${id}')">${id}</span>` : '—';
+}
+function copyText(t){
+  navigator.clipboard && navigator.clipboard.writeText(t).then(()=>toast('✅ Đã copy: '+t));
+}
+
+/* ================================================
+   NAVIGATION
+   ================================================ */
+function go(id){
+  const allowed = ROLE_TABS[currentRole];
+  if(!allowed.includes(id)){ toast('🔒 Bạn không có quyền truy cập tab này', true); return; }
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  el(id).classList.add('on');
+  const tabs=['t0','t1','t2','t3','t4'];
+  const idx = tabs.indexOf(id);
+  const allTabs = document.querySelectorAll('.tab[data-tab]');
+  if(allTabs[idx]) allTabs[idx].classList.add('on');
+  const rend = {t0:rd0, t1:rt1, t2:rt2, t3:rt4, t4:rt5};
+  if(rend[id]) rend[id]();
+}
+
+/* ================================================
+   NV FILTER HELPERS
+   ================================================ */
+function refreshNvFilters(){
+  const nvSup = [...new Set(D.sup.map(s=>s.nv).filter(Boolean))].sort();
+  const nvKH  = [...new Set(D.kh.map(k=>k.nv).filter(Boolean))].sort();
+  const nvCK  = [...new Set(D.ck.map(c=>c.nv).filter(Boolean))].sort();
+
+  function setOpts(id, list){
+    const sel = el(id); if(!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tất cả NV</option>' +
+      list.map(n=>`<option value="${n}">${n}</option>`).join('');
+    if(list.includes(cur)) sel.value = cur;
+  }
+  setOpts('f1nv', nvSup);
+  setOpts('f2nv', nvKH);
+  setOpts('f4nv', nvCK);
+}
+function refreshDataLists(){
+  const partnerNames = D.partners.map(p=>p.name);
+  const khNames = D.khChars.map(k=>k.name);
+  ['dl-partners','dl-p-sup'].forEach(id=>{
+    const dl = el(id); if(!dl) return;
+    dl.innerHTML = partnerNames.map(n=>`<option value="${n}">`).join('');
+  });
+  ['dl-customers','dl-kh-list','dl-kh-ck','dl-kh-dp'].forEach(id=>{
+    const dl = el(id); if(!dl) return;
+    dl.innerHTML = khNames.map(n=>`<option value="${n}">`).join('');
+  });
+  refreshNvFilters();
+}
+
+/* ================================================
+   KH CHARACTERISTIC LOOKUP (modal + table)
+   ================================================ */
+function onSupNameInput(){
+  const val = el('i_sn').value.trim();
+  const info = el('sup_char_info');
+  const newFields = el('sup_new_fields');
+  if(!val){ info.style.display='none'; newFields.style.display='none'; return; }
+  const pchar = D.partners.find(p=>
+    p.name.toLowerCase()===val.toLowerCase() ||
+    p.name.toLowerCase().includes(val.toLowerCase()) ||
+    val.toLowerCase().includes(p.name.toLowerCase())
+  );
+  if(pchar){
+    el('sc_tm').textContent = pchar.tm || '—';
+    el('sc_am').textContent = pchar.am || '—';
+    info.style.display = 'block';
+    newFields.style.display = 'none';
+    if(pchar.stk) el('i_ss').value = pchar.stk;
+  } else {
+    info.style.display = 'none';
+    newFields.style.display = 'block';
+  }
+}
+
+function onKhNameInput(){
+  const val = el('i_kn').value.trim();
+  const info = el('kh_char_info');
+  const newFields = el('kh_new_fields');
+  if(!val){ info.style.display='none'; newFields.style.display='none'; return; }
+  const char = D.khChars.find(c=>
+    c.name.toLowerCase()===val.toLowerCase() ||
+    c.name.toLowerCase().includes(val.toLowerCase()) ||
+    val.toLowerCase().includes(c.name.split('-')[0].trim().toLowerCase())
+  );
+  if(char){
+    el('kc_ch').textContent = char.ch || '—';
+    el('kc_tm').textContent = char.tm || '—';
+    el('kc_am').textContent = char.am || '—';
+    info.style.display = 'block';
+    newFields.style.display = 'none';
+  } else {
+    info.style.display = 'none';
+    newFields.style.display = 'block';
+  }
+}
+
+function getKhChar(name){
+  if(!name) return null;
+  return D.khChars.find(c=>
+    c.name.toLowerCase()===name.toLowerCase() ||
+    c.name.toLowerCase().includes(name.split('-')[0].trim().toLowerCase()) ||
+    name.toLowerCase().includes(c.name.split('-')[0].trim().toLowerCase())
+  ) || null;
+}
+
+function charPill(label, value, highlight=false){
+  if(!value) return '';
+  return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 7px;border-radius:20px;background:${highlight?'var(--grn2)':'var(--bg2)'};color:${highlight?'var(--grn3)':'var(--txt2)'};border:1px solid ${highlight?'var(--grn4)':'var(--brd)'};white-space:nowrap">${label}: <b>${value}</b></span>`;
+}
+function onSupTypeChange(){
+  refreshDataLists();
+}
+
+/* ================================================
+   TAB 0: DASHBOARD
+   ================================================ */
+let chartDaily = null;
+
+function changeMonth(delta){
+  D.viewMonth += delta;
+  if(D.viewMonth < 0){ D.viewMonth = 11; D.viewYear--; }
+  if(D.viewMonth > 11){ D.viewMonth = 0; D.viewYear++; }
+  rd0();
+}
+
+function rd0(){
+  const m = D.viewMonth, y = D.viewYear;
+  const mLabel = `Tháng ${m+1}/${y}`;
+  el('month-label').textContent = mLabel;
+
+  // Filter confirmed CK in month
+  const confirmed = D.ck.filter(c=>{
+    if(!c.date) return false;
+    const d = new Date(c.date);
+    return d.getMonth()===m && d.getFullYear()===y &&
+      (c.status==='Đã XN & Nhập file Sup/MH'||c.status==='Done');
+  });
+
+  // Determine type via linked sup
+  let supTotal=0, supCount=0, mhTotal=0, mhCount=0;
+  confirmed.forEach(c=>{
+    const sup = D.sup.find(s=>s.idCK===c.idCK);
+    if(!sup) return;
+    if(sup.type==='Sup'){ supTotal+=c.amount; supCount++; }
+    else { mhTotal+=c.amount; mhCount++; }
+  });
+
+  el('d-sup-total').textContent = fmt(supTotal);
+  el('d-sup-count').textContent = supCount + ' giao dịch đã xác nhận';
+  el('d-mh-total').textContent  = fmt(mhTotal);
+  el('d-mh-count').textContent  = mhCount  + ' giao dịch đã xác nhận';
+  el('d-all-total').textContent = fmt(supTotal + mhTotal);
+  el('d-all-count').textContent = (supCount + mhCount) + ' giao dịch (Sup + MH)';
+
+  // Daily chart — 2 datasets: Sup (blue) + MH (green)
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const supDaily = Array(daysInMonth).fill(0);
+  const mhDaily  = Array(daysInMonth).fill(0);
+  confirmed.forEach(c=>{
+    const sup = D.sup.find(s=>s.idCK===c.idCK);
+    const day = new Date(c.date).getDate();
+    if(day>=1 && day<=daysInMonth){
+      if(sup && sup.type==='Sup') supDaily[day-1]+=c.amount;
+      else                        mhDaily[day-1]+=c.amount;
+    }
+  });
+  const labels = Array.from({length:daysInMonth},(_,i)=>i+1);
+
+  if(chartDaily){ chartDaily.destroy(); }
+  const ctx1 = el('chart-daily').getContext('2d');
+  chartDaily = new Chart(ctx1, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'Sup',
+          data: supDaily,
+          backgroundColor:'#93C5FD',
+          borderColor:'#185FA5',
+          borderWidth:1,
+          borderRadius:3
+        },
+        {
+          label:'Mua hộ',
+          data: mhDaily,
+          backgroundColor:'#6EE7B7',
+          borderColor:'#0f6e56',
+          borderWidth:1,
+          borderRadius:3
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:true, position:'top', labels:{boxWidth:12,font:{size:12}}},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt(c.raw)}`}}
+      },
+      scales:{
+        y:{ticks:{callback:v=>fmt(v)},grid:{color:'#f1f0ec'}},
+        x:{grid:{display:false}}
+      }
+    }
+  });
+}
+
+/* ================================================
+   TAB 1: CÔNG NỢ SUP/MH
+   ================================================ */
+function calcSupStatus(sup){
+  const confirmed = D.ck.filter(c=>c.idCK===sup.idCK && sup.idCK &&
+    (c.status==='Đã XN & Nhập file Sup/MH'||c.status==='Done'));
+  const total = confirmed.reduce((a,c)=>a+c.amount,0);
+  if(!sup.idCK || total===0) return {total:0, status: sup.status||'Chờ điều phối'};
+  if(total < sup.amount) return {total, status:'CK 1 phần'};
+  if(total === sup.amount) return {total, status:'Done'};
+  return {total, status:'CK dư'};
+}
+
+function rt1(){
+  const st = el('f1s').value, tp = el('f1t').value;
+  const q  = el('f1q').value.toLowerCase();
+  const nv = el('f1nv').value;
+  const canEdit = ['admin','mh'].includes(currentRole);
+  let list = D.sup.filter(s=>
+    (!tp||s.type===tp) &&
+    (!q||s.name.toLowerCase().includes(q)) &&
+    (!nv||s.nv===nv)
+  );
+  if(st) list = list.filter(s=>s.status===st);
+  // newest first (already unshifted on add, but also sort by date desc)
+  list = [...list].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const {items, total, pages, cur} = paginate(list, 'pg1', 10);
+
+  el('tb1').innerHTML = items.length ? items.map(s=>{
+    const cs = calcSupStatus(s);
+    if(cs.total>0) s.status = cs.status;
+    const pchar = D.partners.find(p=>p.name===s.name);
+    const pcharHtml = pchar
+      ? `<div style="font-size:12px;line-height:1.9"><div style="color:var(--txt2);white-space:nowrap">⏱ ${pchar.tm}</div><div style="font-weight:600;color:var(--pur3);white-space:nowrap">💰 ${pchar.am}</div></div>`
+      : '<span style="font-size:11px;color:var(--txt3)">—</span>';
+    const canDoEdit = canEdit && s.status === 'Chờ điều phối';
+    return `<tr>
+      <td class="nowrap">${s.date}</td>
+      <td class="nowrap">${s.nv||'—'}</td>
+      <td><span class="badge ${s.type==='Sup'?'b-sup':'b-mh'}">${s.type}</span></td>
+      <td style="font-weight:600;white-space:nowrap">${s.name}</td>
+      <td>${pcharHtml}</td>
+      <td class="num">${fmt(s.amount)}</td>
+      <td>${stkCell(s.stk)}</td>
+      <td>${idbBadge(s.idCK)}</td>
+      <td class="num" style="color:${cs.total>0?'var(--grn)':'var(--txt2)'};font-weight:500">${cs.total>0?fmt(cs.total):'—'}</td>
+      <td>${sb(s.status)}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px;align-items:center">
+        ${canDoEdit ? `<button class="pill pill-edit" onclick="editStk('${s.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>` : ''}
+        ${canEdit   ? `<button class="pill pill-del" onclick="delSup('${s.id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>` : ''}
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" class="empty">Chưa có dữ liệu</td></tr>';
+
+  renderPg('pg1','pg1',pages,cur,'rt1');
+}
+
+function rt2(){
+  const st = el('f2s').value, q = el('f2q').value.toLowerCase();
+  const nv = el('f2nv').value;
+  const canDp  = ['admin'].includes(currentRole);
+  let list = D.kh.filter(k=>
+    (!st||k.status===st) &&
+    (!q||k.name.toLowerCase().includes(q)) &&
+    (!nv||k.nv===nv)
+  );
+  list = [...list].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const {items, total, pages, cur} = paginate(list, 'pg2', 10);
+
+  el('tb2').innerHTML = items.length ? items.map(k=>{
+    const sup = k.idCK ? D.sup.find(s=>s.idCK===k.idCK) : null;
+    const supName = sup ? stkCell(sup.stk) : '—';
+
+    let dpBtn = '';
+    if(canDp){
+      if(k.status === 'Mới nhập'){
+        dpBtn = `<button class="pill pill-attach" onclick="showDpFromKH('${k._id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg></button>`;
+      } else if(k.idCK) {
+        dpBtn = `<button class="pill pill-edit" onclick="showDpFromKH('${k._id}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>`;
+      }
+    } else if(k.status === 'Mới nhập') {
+      dpBtn = `<span style="font-size:11px;color:var(--txt3)">🔒 Chờ Admin</span>`;
+    }
+
+    const char = getKhChar(k.name);
+    const charHtml = char
+      ? `<div style="font-size:12px;line-height:1.9"><div style="color:var(--txt2);white-space:nowrap">⏱ ${char.tm}</div><div style="font-weight:600;color:var(--grn3);white-space:nowrap">💰 ${char.am}</div></div>`
+      : '<span style="font-size:11px;color:var(--txt3)">—</span>';
+
+    const khParts = k.name.match(/^(.+?)\s*[-–]\s*(\d[\d\s]*)$/) || null;
+    const khNameHtml = khParts
+      ? `<div style="font-weight:600;white-space:nowrap">${khParts[1].trim()}</div><div style="font-size:12px;color:var(--txt2);white-space:nowrap">${khParts[2].trim()}</div>`
+      : `<div style="font-weight:600;white-space:nowrap">${k.name}</div>`;
+
+    // Bill CK cell
+    let billCell = '<td></td>';
+    if(k.idCK){
+      // Check if a bill already exists in D.ck for this KH + idCK
+      const existingBill = D.ck.find(c=>c.idCK===k.idCK && c.kh===k.name && c.link);
+      if(existingBill){
+        // Already has bill — show view icon
+        billCell = `<td style="white-space:nowrap">
+          <button style="background:none;border:none;cursor:pointer;font-size:17px;padding:2px 4px;line-height:1;color:var(--grn)" title="Xem bill CK" onclick="window.open('${existingBill.link.replace(/'/g,"\\'")}','_blank','noopener')">🔎</button>
+        </td>`;
+      } else if(k.status === 'Chờ khách CK'){
+        // Has idCK but no bill yet — show attach icon
+        billCell = `<td style="white-space:nowrap">
+          <button style="background:none;border:none;cursor:pointer;font-size:17px;padding:2px 4px;line-height:1;color:var(--txt2)" title="Nhập bill CK" onclick="toggleBillRow('${k._id}')">📎</button>
+        </td>`;
+      }
+    }
+
+    return `<tr id="krow-${k._id}">
+      <td class="nowrap">${k.date}</td>
+      <td class="nowrap">${k.nv||'—'}</td>
+      <td>${khNameHtml}</td>
+      <td>${charHtml}</td>
+      <td class="num">${fmt(k.origAmount||k.amount)}</td>
+      <td>${k.idCK ? idbBadge(k.idCK) : '<span style="color:var(--txt3);font-size:12px">Chưa gán</span>'}</td>
+      <td>${supName}</td>
+      <td class="num" style="color:var(--grn);font-weight:500">${k.cdAm?fmt(k.cdAm):'—'}</td>
+      <td>${sb(k.status)}</td>
+      ${billCell}
+      <td style="white-space:nowrap">${dpBtn}</td>
+    </tr>
+    <tr id="bill-row-${k._id}" style="display:none;background:var(--grn2)">
+      <td colspan="11" style="padding:10px 14px">
+        <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+          <div>
+            <div style="font-size:11px;color:var(--grn3);font-weight:700;margin-bottom:4px">NGÀY CK</div>
+            <input type="date" id="bill-date-${k._id}" value="${today()}" style="font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none"/>
+          </div>
+          <div style="flex:2;min-width:180px">
+            <div style="font-size:11px;color:var(--grn3);font-weight:700;margin-bottom:4px">LINK ẢNH BILL CK</div>
+            <input id="bill-link-${k._id}" placeholder="https://prnt.sc/..." style="width:100%;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none"/>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--grn3);font-weight:700;margin-bottom:4px">SỐ TIỀN ĐÃ CK</div>
+            <input type="text" id="bill-am-${k._id}" value="${k.cdAm ? fmtInput(k.cdAm) : ''}" oninput="formatCurrencyInput(this)" style="width:150px;font-size:13px;padding:6px 8px;border-radius:6px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none;font-weight:600"/>
+          </div>
+          <div style="display:flex;gap:6px;padding-bottom:1px">
+            <button onclick="saveBillFromKH('${k._id}')" style="background:var(--grn);border:none;border-radius:6px;color:#fff;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;display:flex;align-items:center;gap:5px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Lưu
+            </button>
+            <button onclick="toggleBillRow('${k._id}')" style="background:none;border:1px solid var(--brd2);border-radius:6px;color:var(--txt2);padding:7px 12px;cursor:pointer;font-size:13px">Huỷ</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--grn3);margin-top:6px">
+          ID CK: <b>${k.idCK}</b> · KH: <b>${k.name}</b>
+        </div>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" class="empty">Chưa có dữ liệu</td></tr>';
+
+  renderPg('pg2','pg2',pages,cur,'rt2');
+}
+
+function toggleBillRow(khId){
+  const row = document.getElementById('bill-row-'+khId);
+  if(!row) return;
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+function saveBillFromKH(khId){
+  ensureKhIds();
+  const k = D.kh.find(x=>x._id===khId);
+  if(!k) return;
+
+  const dateEl = document.getElementById('bill-date-'+khId);
+  const linkEl = document.getElementById('bill-link-'+khId);
+  const amEl   = document.getElementById('bill-am-'+khId);
+
+  const date = dateEl ? dateEl.value : today();
+  const link = linkEl ? linkEl.value.trim() : '';
+  const am   = parseInt((amEl ? amEl.value : '').replace(/\D/g,''))||0;
+
+  if(!am){ toast('Nhập số tiền đã CK', true); return; }
+
+  const nvDisplay = currentUser ? currentUser.name : k.nv || '';
+
+  const sup = D.sup.find(s=>s.idCK===k.idCK);
+
+  // Push to D.ck (Tracking CK)
+  D.ck.unshift({
+    date,
+    nv: nvDisplay,
+    kh: k.name,
+    idCK: k.idCK,
+    stk: sup ? sup.stk : k.stk || '',
+    link,
+    amount: am,
+    status: 'Chờ XN & Đã tham chiếu HT'
+  });
+
+  // Update KH status
+  k.status = 'Khách đã CK';
+
+  // Hide bill row
+  const row = document.getElementById('bill-row-'+khId);
+  if(row) row.style.display = 'none';
+
+  autosave(); rt2(); rt4(); rd0(); updateNoti();
+  toast(`✅ Đã lưu bill CK của ${k.name} → Tracking`);
+}
+
+/* ================================================
+   ĐIỀU PHỐI — triggered from KH row
+   showDpFromKH: opens modal with KH pre-selected,
+   user picks Sup/MH account and sets amount
+   ================================================ */
+
+// Give every KH entry a stable _id on save
+function ensureKhIds(){
+  D.kh.forEach(k=>{ if(!k._id) k._id = 'k'+Math.random().toString(36).slice(2,9); });
+}
+
+function showDpFromKH(khId){
+  ensureKhIds();
+  const k = D.kh.find(x=>x._id===khId);
+  if(!k) return;
+
+  const isEdit = !!k.idCK;
+
+  // Populate sup options: show all Sup/MH that have an ID or can get one
+  const supOptions = D.sup.filter(s=>!['Cancelled','Done'].includes(s.status));
+
+  el('dptitle').textContent = isEdit
+    ? `✏️ Sửa điều phối: ${k.name}`
+    : `🔀 Gán ID CK: ${k.name}`;
+
+  const warnDiv = el('dp_warn');
+  if(isEdit){
+    warnDiv.style.display='';
+    el('dp_confirm_edit').checked=false;
+    el('dp_save_btn').disabled=true;
+    el('dp_confirm_edit').onchange=function(){ el('dp_save_btn').disabled=!this.checked; };
+  } else {
+    warnDiv.style.display='none';
+    el('dp_save_btn').disabled=false;
+  }
+
+  // Hide the old KH-list section (we're coming from KH side)
+  el('dp_kh_section').style.display='none';
+  el('dp_cancel_btn').style.display = isEdit ? '' : 'none';
+
+  // Build content: KH info + pick Sup/MH + amount
+  const currentSup = k.idCK ? D.sup.find(s=>s.idCK===k.idCK) : null;
+  el('dpcontent').innerHTML = `
+    <div class="scard" style="padding:12px;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div class="scard-title" style="font-size:11px">Khách hàng</div><div style="font-weight:700">${k.name}</div></div>
+        <div><div class="scard-title" style="font-size:11px">Công nợ gốc</div><div style="font-weight:700">${fmt(k.origAmount||k.amount)}</div></div>
+      </div>
+      ${(()=>{
+        const char = getKhChar(k.name);
+        if(!char) return '';
+        return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)">
+          <div style="font-size:11px;font-weight:700;color:var(--grn3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">📋 Đặc điểm bank của KH</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            ${charPill('Kênh', char.ch)}
+            ${charPill('⏱ Thời gian bank', char.tm)}
+            ${charPill('💰 Số tiền thường bank', char.am, true)}
+          </div>
+        </div>`;
+      })()}
+      ${isEdit?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--brd)"><div class="scard-title" style="font-size:11px">ID CK hiện tại</div>${idbBadge(k.idCK)} <span style="font-size:12px;color:var(--txt2)">${currentSup?'→ '+currentSup.name:''}</span></div>`:''}
+    </div>
+
+    <div class="fr">
+      <label>Chọn tài khoản Sup/MH nhận tiền</label>
+      <select id="dp_sup_sel" onchange="onDpSupChange()" style="width:100%;font-size:13px;padding:8px 10px;border-radius:var(--r);border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none">
+        <option value="">-- Chọn đối tác Sup/MH --</option>
+        ${supOptions.map(s=>`<option value="${s.id}" ${currentSup&&currentSup.id===s.id?'selected':''}>
+          [${s.type}] ${s.name} — CN: ${fmt(s.amount)} — ${sb_text(s.status)}
+        </option>`).join('')}
+        <option value="__new__">➕ Tạo khoản mới cho đối tác chưa có trong danh sách</option>
+      </select>
+    </div>
+    <div id="dp_sup_stk_info" style="font-size:12px;color:var(--txt2);padding:8px 10px;background:var(--bg2);border-radius:6px;margin-bottom:12px;display:${currentSup?'block':'none'};line-height:1.8">
+      ${currentSup?`<b>STK nhận:</b> ${currentSup.stk||'—'}<br><button class="btn btn-sm" onclick="copyText('${(currentSup.stk||'').replace(/'/g,"\\'")}')">📋 Copy STK</button>`:''}
+    </div>
+    <div class="fr">
+      <label>Số tiền chỉ định KH chuyển khoản (VNĐ)</label>
+      <input type="text" id="dp_amount_input" value="${k.cdAm||k.amount ? fmtInput(k.cdAm||k.amount) : ''}" placeholder="Nhập số tiền chỉ định" oninput="formatCurrencyInput(this)" style="font-weight:600"/>
+    </div>
+    <div style="font-size:12px;color:var(--txt2);margin-top:-8px">
+      💡 Nếu muốn tách khoản này thành 2 lần CK vào 2 tài khoản khác nhau → lưu lần này rồi nhập thêm 1 dòng công nợ KH mới với số tiền còn lại.
+    </div>
+  `;
+
+  // Store current KH id for execDp
+  dpSupId = null;
+  window._dpKhId = khId;
+  openM('mdp');
+}
+
+function sb_text(s){ return s||''; }
+
+function onDpSupChange(){
+  const selId = el('dp_sup_sel').value;
+  const info = el('dp_sup_stk_info');
+  if(!selId || selId==='__new__'){ info.style.display='none'; return; }
+  const sup = D.sup.find(s=>s.id===selId);
+  if(sup){
+    info.style.display='block';
+    info.innerHTML=`<b>STK nhận:</b> ${sup.stk||'—'} &nbsp; <b>Công nợ:</b> ${fmt(sup.amount)} &nbsp; ${sb(sup.status)}<br><button class="btn btn-sm" style="margin-top:4px" onclick="copyText('${(sup.stk||'').replace(/'/g,"\\'")}')">📋 Copy STK</button>`;
+  }
+}
+
+function execDp(){
+  // KH-first mode (from showDpFromKH)
+  if(window._dpKhId){
+    ensureKhIds();
+    const k = D.kh.find(x=>x._id===window._dpKhId);
+    if(!k) return;
+
+    const isEdit = !!k.idCK;
+    if(isEdit && !el('dp_confirm_edit').checked){
+      toast('⚠ Vui lòng xác nhận đã thông báo Sale/CSKH', true); return;
+    }
+
+    const selId = el('dp_sup_sel').value;
+    if(!selId){ toast('Chọn tài khoản Sup/MH', true); return; }
+    const amount = parseInt((el('dp_amount_input').value||'').replace(/\D/g,''))||0;
+    if(!amount){ toast('Nhập số tiền chỉ định', true); return; }
+
+    if(selId==='__new__'){
+      toast('Vui lòng nhập công nợ Sup/MH trước ở tab Công nợ Sup/MH', true); return;
+    }
+
+    const sup = D.sup.find(s=>s.id===selId);
+    if(!sup){ toast('Không tìm thấy Sup/MH', true); return; }
+
+    // Ensure sup has an ID
+    if(!sup.idCK) sup.idCK = gid(sup.type==='Sup'?'Sup':'MH');
+    sup.status = 'Đã điều phối';
+
+    // Update KH entry
+    k.idCK   = sup.idCK;
+    k.stk    = sup.stk;
+    k.cdAm   = amount;
+    k.status = 'Chờ khách CK';
+
+    closeM('mdp');
+    window._dpKhId = null;
+    rt2(); rt1(); rd0();
+    autosave(); toast(`✅ Đã gán! ID CK: ${sup.idCK} | KH: ${k.name} → ${sup.name} (${fmt(amount)})`);
+    return;
+  }
+
+  // Legacy Sup-first path (should not normally be reached now)
+  toast('Vui lòng dùng nút Gán ID CK từ tab Công nợ KH', true);
+}
+
+function cancelDp(){
+  if(window._dpKhId){
+    ensureKhIds();
+    const k = D.kh.find(x=>x._id===window._dpKhId);
+    if(k && confirm('Hủy gán ID CK cho khoản này?')){
+      // Unlink from sup
+      const oldSup = D.sup.find(s=>s.idCK===k.idCK);
+      if(oldSup){
+        const othersLinked = D.kh.filter(kk=>kk.idCK===oldSup.idCK && kk._id!==k._id);
+        if(!othersLinked.length) oldSup.status='Chờ điều phối';
+      }
+      k.idCK=''; k.stk=''; k.cdAm=0; k.status='Mới nhập';
+      closeM('mdp'); window._dpKhId=null;
+      rt2(); rt1(); autosave(); toast('Đã hủy gán ID CK');
+    }
+    return;
+  }
+  closeM('mdp');
+}
+
+/* ================================================
+   TAB 4: TRACKING CK
+   ================================================ */
+function rt4(){
+  const st = el('f4s').value, q = el('f4q').value.toLowerCase();
+  const nv = el('f4nv').value;
+  const role = currentRole;
+  const actions = ROLE_TRACK_ACTIONS[role] || [];
+
+  let list = D.ck.filter(c=>
+    (!st||c.status.includes(st)) &&
+    (!q||c.kh.toLowerCase().includes(q)) &&
+    (!nv||c.nv===nv)
+  );
+
+  list = [...list].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const {items:ckItems, total:ckTotal, pages:ckPages, cur:ckCur} = paginate(list, 'pg4', 20);
+
+  el('tb4').innerHTML = ckItems.length ? ckItems.map((c)=>{
+    const ckIdx = D.ck.indexOf(c);
+    const sup = D.sup.find(s=>s.idCK===c.idCK);
+    const partnerName = sup ? `<span class="badge ${sup.type==='Sup'?'b-sup':'b-mh'}">${sup.type}</span> ${sup.name}` : '—';
+    const billLink = c.link
+      ? `<div style="display:flex;gap:6px;align-items:center">
+           <button style="background:none;border:none;cursor:pointer;color:var(--grn);font-size:16px;padding:0;line-height:1" title="Xem bill" onclick="window.open('${c.link.replace(/'/g,"\\'")}','_blank','noopener')">🔎</button>
+           <button style="background:none;border:none;cursor:pointer;color:var(--txt2);font-size:16px;padding:0;line-height:1;display:inline-flex;align-items:center" title="Copy link" onclick="copyText('${c.link.replace(/'/g,"\\'")}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+         </div>`
+      : `<div id="bill-upload-${ckIdx}" style="display:inline-block">
+           <button style="background:none;border:none;cursor:pointer;color:var(--txt3);font-size:17px;padding:2px;line-height:1" title="Upload link bill CK" onclick="toggleCKLinkInput(${ckIdx})">📎</button>
+         </div>
+         <div id="bill-upload-form-${ckIdx}" style="display:none;margin-top:4px">
+           <div style="display:flex;gap:4px;align-items:center">
+             <input id="ck-link-input-${ckIdx}" placeholder="https://prnt.sc/..." style="font-size:12px;padding:4px 7px;border-radius:5px;border:1px solid var(--brd2);background:var(--bg);color:var(--txt);outline:none;width:180px"/>
+             <button onclick="saveCKLink(${ckIdx})" style="background:var(--grn);border:none;border-radius:5px;color:#fff;padding:4px 8px;cursor:pointer;display:inline-flex;align-items:center" title="Lưu link bill">
+               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+             </button>
+             <button onclick="toggleCKLinkInput(${ckIdx})" style="background:none;border:1px solid var(--brd2);border-radius:5px;color:var(--txt2);padding:4px 6px;cursor:pointer;font-size:11px">✕</button>
+           </div>
+         </div>`;
+
+    const canBill  = actions.includes('bill');
+    const canSupXn = actions.includes('supxn');
+    const canThamch= false; // removed
+    const canDuyet = actions.includes('duyet');
+
+    const actBtn = (label, onclick, cls='pill-edit') =>
+      `<button class="act-pill ${cls}" onclick="${onclick}">${label}</button>`;
+
+    let acts = '';
+    if(c.status==='Chờ XN & Đã tham chiếu HT' && canSupXn)
+      acts = actBtn('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg> Sup/MH XN', `confCK(${ckIdx})`, 'pill-attach');
+    else if(c.status.includes('Đã XN & Nhập file Sup/MH') && canThamch)
+      acts = actBtn('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg> Tham chiếu', `thamch(${ckIdx})`, 'pill-edit');
+    else if(c.status==='Đã XN & Nhập file Sup/MH' && canDuyet)
+      acts = actBtn('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V17z"/></svg> Duyệt', `duyet(${ckIdx})`, 'pill-attach');
+
+    return `<tr>
+      <td class="nowrap">${c.date}</td>
+      <td class="nowrap">${c.nv||'—'}</td>
+      <td style="font-weight:600;white-space:nowrap">${c.kh}</td>
+      <td>${idbBadge(c.idCK)}</td>
+      <td style="font-size:13px">${partnerName}</td>
+      <td class="num" style="font-weight:500">${fmt(c.amount)}</td>
+      <td>${billLink}</td>
+      <td>${sb(c.status)}</td>
+      <td style="white-space:nowrap">${acts}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px">
+        <button class="pill pill-edit" title="Sửa" onclick="openEditCK(${ckIdx})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="pill pill-del" title="Xoá" onclick="delCK(${ckIdx})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="10" class="empty">Chưa có bill CK nào</td></tr>';
+
+  renderPg('pg4','pg4',ckPages,ckCur,'rt4');
+}
+
+function toggleCKLinkInput(ckIdx){
+  const form = document.getElementById('bill-upload-form-'+ckIdx);
+  if(!form) return;
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+function saveCKLink(ckIdx){
+  const input = document.getElementById('ck-link-input-'+ckIdx);
+  if(!input) return;
+  const link = input.value.trim();
+  if(!link){ toast('Nhập link ảnh bill', true); return; }
+  D.ck[ckIdx].link = link;
+  autosave(); rt4();
+  toast('✅ Đã lưu link bill CK');
+}
+
+function confCK(i){
+  D.ck[i].status = 'Đã XN & Nhập file Sup/MH';
+  updateSupStatus(D.ck[i].idCK);
+  const khEntry = D.kh.find(k=>k.name===D.ck[i].kh && k.idCK===D.ck[i].idCK);
+  if(khEntry) khEntry.status = 'Khách đã CK';
+  rt4(); rd0(); rt1(); autosave(); updateNoti();
+  toast('✅ Đã xác nhận Sup/MH nhận tiền. Vui lòng nhập vào file Mua Hộ/Report GC Mua.');
+}
+function thamch(i){
+  D.ck[i].status = 'Đã XN & Nhập file Sup/MH';
+  rt4(); autosave(); toast('✅ Đã XN & Nhập file Sup/MH lên hệ thống');
+}
+function duyet(i){
+  D.ck[i].status = 'Done';
+  const khEntry = D.kh.find(k=>k.name===D.ck[i].kh && k.idCK===D.ck[i].idCK);
+  if(khEntry) khEntry.status = 'Done';
+  rt4(); rd0(); rt1(); autosave(); updateNoti();
+  toast('✅ Done và nhập Thu Chi');
+}
+
+function openEditCK(i){
+  const c = D.ck[i]; if(!c) return;
+  el('eck_idx').value = i;
+  el('eck_date').value = c.date||today();
+  el('eck_nv').value  = c.nv||'';
+  el('eck_kh').value  = c.kh||'';
+  el('eck_link').value= c.link||'';
+  el('eck_am').value  = c.amount ? fmtInput(c.amount) : '';
+  el('eck_status').value = c.status||'Chờ XN & Đã tham chiếu HT';
+  // Populate ID CK dropdown
+  const sel = el('eck_cid');
+  sel.innerHTML='<option value="">-- Chọn --</option>';
+  const seen=new Set();
+  D.sup.filter(s=>s.idCK).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).forEach(s=>{
+    if(seen.has(s.idCK)) return; seen.add(s.idCK);
+    sel.innerHTML+=`<option value="${s.idCK}">${s.idCK} — ${s.name}</option>`;
+  });
+  sel.value = c.idCK||'';
+  // Populate kh datalist
+  const dl=el('dl-kh-ck2'); if(dl) dl.innerHTML=D.khChars.map(k=>`<option value="${k.name}">`).join('');
+  el('eck_cid_info').style.display='none';
+  openM('m-edit-ck');
+}
+function onEckCidChange(){
+  const v=el('eck_cid').value; const inf=el('eck_cid_info');
+  if(!v){inf.style.display='none';return;}
+  const sup=D.sup.find(s=>s.idCK===v);
+  if(sup){ inf.style.display='block'; inf.innerHTML=`<b>${sup.name}</b> · ${fmt(sup.amount)} · ${sup.stk||'—'}`; }
+}
+function saveEditCK(){
+  const i=parseInt(el('eck_idx').value);
+  const c=D.ck[i]; if(!c) return;
+  c.date  = el('eck_date').value;
+  c.nv    = el('eck_nv').value;
+  c.kh    = el('eck_kh').value.trim();
+  c.link  = el('eck_link').value.trim();
+  c.amount= parseInt((el('eck_am').value||'').replace(/\D/g,''))||0;
+  c.status= el('eck_status').value;
+  const newIdCK = el('eck_cid').value;
+  if(newIdCK!==c.idCK){
+    c.idCK = newIdCK;
+    const sup=D.sup.find(s=>s.idCK===newIdCK);
+    c.stk  = sup?sup.stk:'';
+  }
+  closeM('m-edit-ck'); rt4(); rd0(); rt1(); autosave();
+  toast('✅ Đã cập nhật bill CK');
+}
+function delCK(i){
+  if(!confirm('Xoá bill CK này?')) return;
+  D.ck.splice(i,1); rt4(); rd0(); rt1(); autosave();
+  toast('Đã xoá bill CK');
+}
+
+function updateSupStatus(idCK){
+  const sup = D.sup.find(s=>s.idCK===idCK);
+  if(!sup) return;
+  const cs = calcSupStatus(sup);
+  sup.status = cs.status;
+}
+
+/* ================================================
+   AUTO STATUS UPDATE (simulating midnight recalc)
+   ================================================ */
+function recalcAllSupStatuses(){
+  D.sup.forEach(s=>{
+    if(!s.idCK || s.status==='Cancelled') return;
+    const cs = calcSupStatus(s);
+    if(cs.total > 0) s.status = cs.status;
+  });
+  rt1(); rt2();
+}
+
+/* ================================================
+   AUTO CHỐT PHIÊN — Thứ 2 & Thứ 5 lúc 11:00 sáng
+   ================================================ */
+let _lastChotPhien = localStorage.getItem('lastChotPhien') || '';
+
+function checkAutoChot(){
+  if(!currentUser) return; // only when logged in
+  const now = new Date();
+  const day = now.getDay(); // 1=Mon, 4=Thu
+  const h   = now.getHours();
+  const m   = now.getMinutes();
+  if((day === 1 || day === 4) && h === 11 && m === 0){
+    const key = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    if(_lastChotPhien === key) return;
+    _lastChotPhien = key;
+    localStorage.setItem('lastChotPhien', key);
+    runChotPhien(true);
+  }
+}
+
+function runChotPhien(auto=false){
+  const label = auto ? 'Tự động chốt phiên 11:00' : 'Chốt phiên thủ công';
+  let supCount=0, khCount=0;
+  D.sup.forEach(s=>{
+    if(!['Done','Cancelled','CK dư'].includes(s.status)){
+      s.status='Cancelled'; supCount++;
+    }
+  });
+  D.kh.forEach(k=>{
+    if(!['Done','Cancelled','Khách đã CK'].includes(k.status)){
+      k.status='Cancelled'; khCount++;
+    }
+  });
+  autosave(); rd0(); rt1(); rt2();
+  if(supCount+khCount > 0)
+    toast(`⏰ ${label}: đã huỷ ${supCount} khoản Sup/MH và ${khCount} khoản KH chưa hoàn thành`, false, 6000);
+}
+
+// Run on load and every minute
+recalcAllSupStatuses();
+setInterval(recalcAllSupStatuses, 60000);
+setInterval(checkAutoChot, 60000);
+
+/* ================================================
+   TAB 5: ĐẶC ĐIỂM
+   ================================================ */
+function rt5(){
+  const q    = (el('f5q')?.value||'').toLowerCase();
+  const type = el('f5type')?.value || '';
+  const ch   = el('f5ch')?.value   || '';
+
+  // Section visibility
+  const showSup = !type || type === 'Sup' || type === 'Mua hộ';
+  const showKH  = !type || type === 'KH';
+  const supSection = el('tb5a').closest('.tw');
+  const supTitle   = supSection.previousElementSibling;
+  const khSection  = el('tb5b').closest('.tw');
+  const khTitle    = khSection.previousElementSibling;
+  supSection.style.display = showSup ? '' : 'none';
+  supTitle.style.display   = showSup ? '' : 'none';
+  khSection.style.display  = showKH ? '' : 'none';
+  khTitle.style.display    = showKH ? '' : 'none';
+
+  // Filter Sup/MH
+  let filteredP = D.partners.filter(p=>
+    (type === '' || type === 'KH' ? type === '' : p.type === type) &&
+    (!q || p.name.toLowerCase().includes(q))
+  );
+
+  el('tb5a').innerHTML = filteredP.length
+    ? filteredP.map((p)=>{
+        const i = D.partners.indexOf(p);
+        return `<tr>
+          <td><span class="badge ${p.type==='Sup'?'b-sup':'b-mh'}">${p.type}</span></td>
+          <td style="font-weight:600">${p.name}</td>
+          <td>${p.tm}</td>
+          <td>${p.am}</td>
+          <td style="font-size:12px;max-width:200px;word-break:break-word">${p.stk||'—'}</td>
+          <td style="white-space:nowrap">
+            <button class="pill pill-edit" onclick="openEditPartner(${i})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="pill pill-del" onclick="delPartner(${i})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6" class="empty">Chưa có đối tác nào</td></tr>';
+
+  // Filter KH
+  let filteredKH = D.khChars.filter(k=>
+    (!ch || k.ch === ch) &&
+    (!q  || k.name.toLowerCase().includes(q))
+  );
+
+  el('tb5b').innerHTML = filteredKH.length
+    ? filteredKH.map((k)=>{
+        const i = D.khChars.indexOf(k);
+        return `<tr>
+          <td><span class="badge b-new">${k.ch}</span></td>
+          <td>${k.name}</td>
+          <td>${k.tm}</td>
+          <td>${k.am}</td>
+          <td style="white-space:nowrap">
+            <button class="pill pill-edit" onclick="openEditKhChar(${i})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+            <button class="pill pill-del" onclick="delKhChar(${i})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>
+          </td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="5" class="empty">Chưa có KH nào</td></tr>';
+
+  refreshDataLists();
+}
+function openEditPartner(i){
+  const p = D.partners[i]; if(!p) return;
+  el('ep_idx').value=i; el('ep_type').value=p.type; el('ep_name').value=p.name;
+  el('ep_stk').value=p.stk||''; el('ep_tm').value=p.tm; el('ep_am').value=p.am;
+  openM('m-edit-partner');
+}
+function saveEditPartner(){
+  const i=parseInt(el('ep_idx').value);
+  D.partners[i]={type:el('ep_type').value, name:el('ep_name').value.trim(),
+    stk:el('ep_stk').value.trim(), tm:el('ep_tm').value, am:el('ep_am').value};
+  closeM('m-edit-partner'); rt5(); autosave(); toast('✅ Đã cập nhật đặc điểm Sup/MH');
+}
+function openEditKhChar(i){
+  const k = D.khChars[i]; if(!k) return;
+  el('ek_idx').value=i; el('ek_ch').value=k.ch; el('ek_name').value=k.name;
+  el('ek_tm').value=k.tm; el('ek_am').value=k.am;
+  openM('m-edit-kh-char');
+}
+function saveEditKhChar(){
+  const i=parseInt(el('ek_idx').value);
+  D.khChars[i]={ch:el('ek_ch').value, name:el('ek_name').value.trim(),
+    tm:el('ek_tm').value, am:el('ek_am').value};
+  closeM('m-edit-kh-char'); rt5(); autosave(); toast('✅ Đã cập nhật đặc điểm KH');
+}
+function delPartner(i){ if(!confirm('Xoá đối tác này?')) return; D.partners.splice(i,1); rt5(); refreshDataLists(); autosave(); }
+function delKhChar(i){ if(!confirm('Xoá KH này?')) return; D.khChars.splice(i,1); rt5(); refreshDataLists(); autosave(); }
+
+/* ================================================
+   SAVE FORMS
+   ================================================ */
+function saveSup(){
+  const n = el('i_sn').value.trim();
+  const a = parseInt((el('i_sa').value||'').replace(/\D/g,''))||0;
+  if(!n||!a){ toast('Vui lòng nhập tên đối tác và số tiền', true); return; }
+  const id = 's'+Date.now();
+  const stype = el('i_st').value;
+  // Auto-generate ID CK immediately
+  const d = el('i_sd').value.replace(/-/g,'').slice(2); // YYMMDD
+  const prefix = stype === 'Sup' ? 'TD' : 'NL';
+  const newIdCK = prefix + d + String(D.ctr++).padStart(2,'0');
+  D.sup.unshift({
+    id, date:el('i_sd').value, nv:el('i_snv').value,
+    type:stype, name:n, amount:a,
+    stk:el('i_ss').value, note:el('i_snote').value,
+    status:'Chờ điều phối', idCK: newIdCK
+  });
+  // Save to partners if new
+  if(!D.partners.find(p=>p.name===n)){
+    const isNew = el('sup_new_fields').style.display !== 'none';
+    if(isNew && (!el('i_s_tm').value || !el('i_s_am').value)){
+      toast('Vui lòng chọn Thời gian và Số tiền y/c bank cho đối tác mới', true); return;
+    }
+    D.partners.push({
+      type:stype, name:n, stk:el('i_ss').value,
+      tm: isNew ? el('i_s_tm').value : 'Không dí',
+      am: isNew ? el('i_s_am').value : 'Thế nào cũng ok'
+    });
+    refreshDataLists();
+    toast(`✅ Đã lưu & tạo ID CK: ${newIdCK}`);
+  } else {
+    toast(`✅ Đã lưu! ID CK: ${newIdCK}`);
+  }
+  closeM('msup');
+  D.pg1=0; autosave(); rd0(); rt1(); rt3();
+}
+
+function saveKH(){
+  const n = el('i_kn').value.trim();
+  const a = parseInt((el('i_ka').value||'').replace(/\D/g,''))||0;
+  if(!n||!a){ toast('Nhập đủ tên KH và số tiền', true); return; }
+  D.kh.unshift({
+    date:el('i_kd').value, nv:el('i_knv').value,
+    name:n, amount:a, origAmount:a,
+    note:el('i_knote').value, status:'Mới nhập',
+    idCK:'', stk:'', cdAm:0
+  });
+  // Save to khChars if new
+  if(!D.khChars.find(k=>k.name===n)){
+    const isNew = el('kh_new_fields').style.display !== 'none';
+    if(isNew && (!el('i_k_ch').value || !el('i_k_tm').value || !el('i_k_am').value)){
+      toast('Vui lòng chọn đầy đủ Kênh, Thời gian và Số tiền cho KH mới', true); return;
+    }
+    D.khChars.push({
+      ch:  isNew ? el('i_k_ch').value  : 'Checkout',
+      name: n,
+      tm:  isNew ? el('i_k_tm').value  : '1-2 ngày',
+      am:  isNew ? el('i_k_am').value  : 'Đúng số CN'
+    });
+    refreshDataLists();
+    toast('✅ Đã lưu & thêm KH mới vào Danh sách!');
+  } else {
+    toast('✅ Đã lưu công nợ KH!');
+  }
+  closeM('mkh');
+  ensureKhIds();
+  D.pg2=0; autosave(); rd0(); rt2();
+}
+
+function onCidChange(){
+  const v = el('i_cid').value;
+  const inf = el('cid_info');
+  if(!v){ inf.style.display='none'; return; }
+  const sup = D.sup.find(s=>s.idCK===v);
+  if(sup){
+    inf.style.display='block';
+    inf.innerHTML=`<b>Đối tác:</b> ${sup.name} (${sup.type})<br><b>STK nhận:</b> ${sup.stk||'—'}<br><b>Công nợ:</b> ${fmt(sup.amount)}`;
+  }
+}
+
+function formatStk(raw){
+  if(!raw || raw==='—') return raw||'';
+  const parts = raw.split(/\s+/);
+  let acctIdx = -1;
+  for(let i=0;i<parts.length;i++){
+    if(/^\d{8,}$/.test(parts[i])){ acctIdx=i; break; }
+  }
+  if(acctIdx<0) return raw;
+  const acct = parts[acctIdx];
+  let beforeAcct = parts.slice(0,acctIdx);
+  let afterAcct  = parts.slice(acctIdx+1);
+  let ndIdx = afterAcct.findIndex(p=>p.toUpperCase()==='ND:');
+  let ownerParts, noteParts;
+  if(ndIdx>=0){
+    ownerParts = afterAcct.slice(0,ndIdx);
+    noteParts  = afterAcct.slice(ndIdx);
+  } else {
+    let joinedNdIdx = afterAcct.findIndex(p=>p.toUpperCase().startsWith('ND:'));
+    if(joinedNdIdx>=0){
+      ownerParts = afterAcct.slice(0,joinedNdIdx);
+      noteParts  = afterAcct.slice(joinedNdIdx);
+    } else {
+      ownerParts = afterAcct;
+      noteParts  = [];
+    }
+  }
+  const bank  = beforeAcct.join(' ');   // empty string if none — filter removes it
+  const owner = ownerParts.join(' ');
+  const nd    = noteParts.join(' ');
+  return [bank, acct, owner, nd].filter(Boolean).join('\n');
+}
+
+const svgCopyIcon = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+
+function stkCell(raw){
+  if(!raw || raw==='—') return '—';
+  const formatted = formatStk(raw);
+  if(!formatted) return '—';
+  const lines = formatted.split('\n');
+  // Store raw in a global map keyed by a unique id to avoid escaping issues
+  const storeKey = 'stk_' + Math.random().toString(36).slice(2,8);
+  window._stkStore = window._stkStore || {};
+  window._stkStore[storeKey] = raw;
+  const copyBtn = `<button style="background:none;border:none;cursor:pointer;color:var(--txt2);padding:0;display:inline-flex;align-items:center;flex-shrink:0;margin-left:auto" title="Copy STK" onclick="copyText(window._stkStore['${storeKey}'])">${svgCopyIcon}</button>`;
+  const html = lines.map((l,i)=>{
+    if(i===0) return `<div style="display:flex;align-items:center;gap:4px"><span style="font-weight:600;font-size:12px;flex:1">${l}</span>${copyBtn}</div>`;
+    if(i===1) return `<div style="font-family:monospace;font-size:12px;color:var(--grn3)">${l}</div>`;
+    if(i===2) return `<div style="font-size:12px">${l}</div><div style="height:4px"></div>`;
+    return `<div style="font-size:11px;color:var(--txt2)">${l}</div>`;
+  }).join('');
+  return `<div>${html}</div>`;
+}
+
+function paginate(list, pgKey, perPage){
+  const total = list.length;
+  const pages = Math.max(1, Math.ceil(total/perPage));
+  if(D[pgKey] >= pages) D[pgKey] = pages-1;
+  const start = D[pgKey]*perPage;
+  return {items: list.slice(start, start+perPage), total, pages, cur: D[pgKey]};
+}
+
+function renderPg(containerId, pgKey, pages, cur, renderFn){
+  const c = el(containerId); if(!c) return;
+  if(pages<=1){ c.innerHTML=''; return; }
+  let html = `<span>${cur*10+1}–${Math.min((cur+1)*10, pages*10)} / tổng</span>`;
+  html += `<button class="pgbtn" onclick="D.${pgKey}=0;${renderFn}()" ${cur===0?'disabled':''}>«</button>`;
+  html += `<button class="pgbtn" onclick="D.${pgKey}--;${renderFn}()" ${cur===0?'disabled':''}>‹</button>`;
+  // show max 5 page buttons
+  const start = Math.max(0, cur-2), end = Math.min(pages-1, start+4);
+  for(let i=start;i<=end;i++){
+    html += `<button class="pgbtn ${i===cur?'cur':''}" onclick="D.${pgKey}=${i};${renderFn}()">${i+1}</button>`;
+  }
+  html += `<button class="pgbtn" onclick="D.${pgKey}++;${renderFn}()" ${cur>=pages-1?'disabled':''}>›</button>`;
+  html += `<button class="pgbtn" onclick="D.${pgKey}=${pages-1};${renderFn}()" ${cur>=pages-1?'disabled':''}>»</button>`;
+  html += `<span style="margin-left:4px">/ ${pages} trang</span>`;
+  c.innerHTML = html;
+}
+
+function previewLink(){
+  const l = el('i_clink').value.trim();
+  if(l) window.open(l,'_blank');
+}
+function copyLink(){
+  const l = el('i_clink').value.trim();
+  if(l) copyText(l);
+}
+
+function saveCK(){
+  const idCK = el('i_cid').value;
+  const kh   = el('i_ckh').value.trim();
+  const am   = parseInt((el('i_cam').value||'').replace(/\D/g,''))||0;
+  if(!kh||!am){ toast('Nhập tên KH và số tiền', true); return; }
+  const sup = D.sup.find(s=>s.idCK===idCK);
+  D.ck.unshift({
+    date:el('i_cd').value, nv:el('i_cnv').value,
+    kh, idCK, stk:sup?sup.stk:'',
+    link:el('i_clink').value, amount:am, status:'Chờ XN & Đã tham chiếu HT'
+  });
+  const khEntry = D.kh.find(k=>k.name===kh && k.idCK===idCK);
+  if(khEntry && khEntry.status==='Chờ khách CK') khEntry.status='Khách đã CK';
+  closeM('mck');
+  refreshNvFilters();
+  autosave(); rd0(); rt4(); rt2(); updateNoti();
+  toast('✅ Đã lưu bill! Tình trạng: Chờ XN & Đã tham chiếu HT từ Sup/MH');
+}
+
+/* ================================================
+   GỢI Ý GHÉP PHIÊN — rule-based matching engine
+   ================================================ */
+
+function getCurrentSession(){
+  const now = new Date();
+  const day = now.getDay();
+  const nextMon = new Date(now); nextMon.setDate(now.getDate() + ((1-day+7)%7||7));
+  const nextThu = new Date(now); nextThu.setDate(now.getDate() + ((4-day+7)%7||7));
+  const next = nextMon < nextThu ? nextMon : nextThu;
+  return {
+    date: next.toISOString().split('T')[0],
+    label: next.toLocaleDateString('vi-VN',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})
+  };
+}
+
+/*
+  Thời gian Level mapping (updated):
+  Sup/MH:
+    Level 1 = "Trong ngày", "Bank trước"
+    Level 2 = "2-3 ngày", "Max 3 ngày"
+    Level 3 = "Không giục", "Không dí", "Thoải mái"
+  KH:
+    Level 1 = "Trong ngày", "Nhanh, trong ngày"
+    Level 2 = "1-2 ngày", "3-5 ngày"
+    Level 3 = "3-5 ngày", "Giục nhiều lần", "Nhây..."
+  Note: "3-5 ngày" maps to Level 2 for Sup matching (acceptable) but
+        is also grouped at Level 3 when no Level 2 Sup available.
+  Rule: KH level <= Sup level => compatible
+*/
+function supTimeLevel(tm){
+  if(!tm) return 3;
+  const l = tm.toLowerCase();
+  if(l.includes('trong ngày') || l.includes('trước')) return 1;
+  if(l.includes('2-3') || l.includes('max 3') || l.includes('2-3 ngày')) return 2;
+  return 3; // Không giục, Không dí, thoải mái, etc.
+}
+function khTimeLevel(tm){
+  if(!tm) return 3;
+  const l = tm.toLowerCase();
+  if(l.includes('trong ngày') || l.includes('nhanh')) return 1;
+  if(l.includes('1-2') || l.includes('3-5')) return 2;
+  return 3; // Giục nhiều lần, Nhây, không rõ
+}
+
+// KH is compatible with Sup if khLevel <= supLevel
+// Returns the effective "time fit" score for display (higher = tighter match)
+function timeFit(khLevel, supLevel){
+  if(khLevel > supLevel) return -1; // incompatible
+  if(khLevel === supLevel) return 3; // perfect
+  if(supLevel - khLevel === 1) return 2; // KH 1 level faster than needed
+  return 1; // KH much faster than needed (ok, but not ideal)
+}
+
+/*
+  Ưu tiên 2 - Amount:
+  - Each KH banks their FULL amount (no splitting)
+  - Pick multiple KH (same time level) whose TOTAL <= sup.amount, maximising sum
+  - Use greedy knapsack: sort KH by amount desc, add while total <= sup.amount
+  Returns {khs, total, remaining}
+*/
+function selectKHs(khPool, supAmount){
+  // Sort desc by amount for greedy best-fit
+  const sorted = [...khPool].sort((a,b)=>b.amount-a.amount);
+  const selected = [];
+  let total = 0;
+  for(const k of sorted){
+    if(total + k.amount <= supAmount){
+      selected.push(k);
+      total += k.amount;
+    }
+  }
+  return {khs: selected, total, remaining: supAmount - total};
+}
+
+function buildSuggestions(){
+  const unassignedKH = D.kh.filter(k => !k.idCK && k.status === 'Mới nhập').map(k=>({...k}));
+  // Include both "Chờ điều phối" and "CK 1 phần" (still has unpaid balance)
+  const pendingSup   = D.sup.filter(s => s.status === 'Chờ điều phối' || s.status === 'CK 1 phần');
+  if(!pendingSup.length) return [];
+
+  const khEnriched = unassignedKH.map(k=>{
+    const c = getKhChar(k.name);
+    return {...k, _tm: c?c.tm:'', _level: khTimeLevel(c?c.tm:'')};
+  });
+  const supEnriched = pendingSup.map(s=>{
+    const c = D.partners.find(p=>p.name===s.name);
+    // For "CK 1 phần": effective target = remaining unpaid amount
+    const cs = calcSupStatus(s);
+    const effectiveAmount = s.status === 'CK 1 phần'
+      ? Math.max(s.amount - cs.total, 0)
+      : s.amount;
+    return {...s, _tm: c?c.tm:'', _level: supTimeLevel(c?c.tm:''), _effectiveAmount: effectiveAmount};
+  });
+
+  // Sort sup by urgency (level 1 first)
+  supEnriched.sort((a,b)=>a._level-b._level);
+
+  const suggestions = [];
+  const usedKhIds = new Set();
+
+  for(const sup of supEnriched){
+    const targetAmount = sup._effectiveAmount;
+
+    // First pass: try KH at exact level or faster
+    let pool = khEnriched.filter(k => !usedKhIds.has(k._id||k.name) && k._level <= sup._level);
+
+    // If no pool found for this sup level, try using remaining KH at any level (cascade up)
+    if(!pool.length){
+      pool = khEnriched.filter(k => !usedKhIds.has(k._id||k.name));
+    }
+
+    if(!pool.length){
+      suggestions.push({
+        sup, khs: [], total: 0, remaining: targetAmount,
+        supLevel: sup._level, khMaxLevel: 0, tf: 0, as: 0, score: 0,
+        accepted: null,
+        note: (sup.status === 'CK 1 phần' ? `💰 Còn thiếu: ${fmt(targetAmount)} (đã CK ${fmt(sup.amount - targetAmount)}). ` : '') + '⚠ Chưa có KH nào phù hợp để ghép.'
+      });
+      continue;
+    }
+
+    const {khs, total, remaining} = selectKHs(pool, targetAmount);
+    if(!khs.length){
+      suggestions.push({
+        sup, khs: [], total: 0, remaining: targetAmount,
+        supLevel: sup._level, khMaxLevel: 0, tf: 0, as: 0, score: 0,
+        accepted: null,
+        note: (sup.status === 'CK 1 phần' ? `💰 Còn thiếu: ${fmt(targetAmount)}. ` : '') + '⚠ Không có KH nào đủ điều kiện ghép.'
+      });
+      continue;
+    }
+
+    khs.forEach(k=>usedKhIds.add(k._id||k.name));
+
+    const worstKhLevel = Math.max(...khs.map(k=>k._level));
+    const tf = timeFit(worstKhLevel, sup._level);
+    const pct = total / targetAmount;
+    const as = pct >= 0.99 ? 3 : pct >= 0.85 ? 2 : pct >= 0.6 ? 1 : 0;
+
+    let note = '';
+    if(sup.status === 'CK 1 phần'){
+      note = `💰 Công nợ còn thiếu: ${fmt(targetAmount)} (đã CK ${fmt(sup.amount - targetAmount)}). `;
+    }
+    if(worstKhLevel > sup._level){
+      note += `⚠ KH bank ${['','trong ngày','1-2 / 3-5 ngày','giục nhiều lần'][worstKhLevel]} nhưng Sup/MH y/c ${['','trong ngày','2-3 ngày','không giục'][sup._level]} — cascade do hết KH phù hợp.`;
+    } else if(worstKhLevel < sup._level){
+      note += `💡 KH bank ${['','trong ngày','1-2 / 3-5 ngày','giục nhiều lần'][worstKhLevel]} nhưng Sup/MH chỉ cần ${['','trong ngày','2-3 ngày','không giục'][sup._level]} — cascade.`;
+    }
+
+    suggestions.push({
+      sup, khs, total, remaining,
+      supLevel: sup._level, khMaxLevel: worstKhLevel,
+      tf, as, score: tf + as,
+      accepted: null, note,
+      targetAmount  // carry through for progress bar
+    });
+  }
+
+  suggestions.sort((a,b)=>b.score-a.score);
+  return suggestions;
+}
+
+let _suggestions = [];
+
+function scoreBar(score, max=3){
+  const pct = Math.round((score/max)*100);
+  const color = score===3?'var(--grn)':score===2?'var(--amb)':score===1?'var(--amb3)':'var(--red)';
+  const labels = ['','★','★★','★★★'];
+  return `<div style="display:flex;align-items:center;gap:6px">
+    <div style="flex:1;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div>
+    </div>
+    <span style="font-size:11px;font-weight:700;color:${color};width:28px">${labels[score]||'—'}</span>
+  </div>`;
+}
+
+function openSuggest(){
+  if(!ROLE_TABS[currentRole].includes('t2')){
+    toast('Không có quyền truy cập', true); return;
+  }
+  const session = getCurrentSession();
+  el('sug-session-label').textContent = session.label;
+  _suggestions = buildSuggestions();
+
+  if(!_suggestions.length){
+    el('sug-content').innerHTML = `
+      <div class="empty" style="padding:30px">
+        <div style="font-size:32px;margin-bottom:8px">🎉</div>
+        <div>Không có khoản nào cần ghép — tất cả KH đã được gán hoặc không có Sup/MH chờ điều phối.</div>
+      </div>`;
+    el('sug-accept-all-btn').style.display='none';
+    openM('m-suggest'); return;
+  }
+
+  el('sug-accept-all-btn').style.display='';
+  renderSuggest();
+  openM('m-suggest');
+}
+
+const TIME_LEVEL_LABEL = {1:'Trong ngày', 2:'2-3 ngày / Max 3 ngày', 3:'Không giục / Thoải mái'};
+
+function renderSuggest(){
+  const html = _suggestions.map((sug, si) => {
+    const supChar = D.partners.find(p=>p.name===sug.sup.name);
+    const target = sug.targetAmount || sug.sup.amount;
+    const diff = target - sug.total;
+    const pct  = target > 0 ? sug.total / target * 100 : 0;
+    const tfLabels = {3:'Khớp hoàn hảo', 2:'KH bank nhanh hơn yêu cầu', 1:'KH bank sớm, Sup không cần gấp', '-1':'Không tương thích'};
+    const asLabels = {3:'Khớp số tiền', 2:'Gần đủ (≥85%)', 1:'Chấp nhận được (≥60%)', 0:'Chênh lệch nhiều'};
+    const allAccepted = sug.khs.every(k=>k._sug_accepted===true);
+    const allSkipped  = sug.khs.every(k=>k._sug_accepted===false);
+    return `
+    <div style="border:1.5px solid ${allAccepted?'var(--grn)':allSkipped?'var(--brd)':'var(--brd2)'};border-radius:var(--rl);margin-bottom:14px;overflow:hidden;opacity:${allSkipped?'0.45':'1'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:10px 16px;background:${allAccepted?'var(--grn2)':'var(--bg2)'}">
+        <div>
+          <span style="font-size:14px;font-weight:700">${sug.sup.name}</span>
+          <span class="badge ${sug.sup.type==='Sup'?'b-sup':'b-mh'}" style="margin-left:6px">${sug.sup.type}</span>
+          ${sug.sup.status==='CK 1 phần'?`<span class="badge b-part" style="margin-left:6px">CK 1 phần</span>`:''}
+          <span style="font-size:12px;color:var(--txt2);margin-left:8px">Level ${sug.supLevel} — ${TIME_LEVEL_LABEL[sug.supLevel]}</span>
+          <span style="font-size:12px;color:var(--txt2);margin-left:8px">CN: <b>${fmt(sug.sup.amount)}</b>${sug.sup.status==='CK 1 phần'?` · Còn: <b style="color:var(--amb3)">${fmt(sug.targetAmount)}</b>`:''}</span>
+        </div>
+        ${supChar?`<div style="font-size:11px;color:var(--txt2)">⏱ ${supChar.tm} · 💰 ${supChar.am}</div>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:0;border-top:1.5px solid var(--brd)">
+        <div style="padding:12px 16px;border-right:1px solid var(--brd)">
+          <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">KH được gợi ý (${sug.khs.length}) — Tổng: ${fmt(sug.total)}</div>
+          ${sug.khs.map((k,ki)=>{
+            const kc = getKhChar(k.name);
+            const khParts = k.name.match(/^(.+?)\s*[-–]\s*(\d[\d\s]*)$/);
+            const dispName = khParts ? khParts[1].trim() : k.name;
+            const acc = k._sug_accepted;
+            return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;margin-bottom:6px;border-radius:var(--r);border:1px solid '+(acc===true?'var(--grn)':acc===false?'var(--brd)':'var(--brd2)')+';background:'+(acc===true?'var(--grn2)':acc===false?'var(--bg3)':'var(--bg)')+';opacity:'+(acc===false?'0.5':'1')+'">'
+              +'<div style="flex:1"><div style="font-size:12px;font-weight:600">'+dispName+'</div>'
+              +'<div style="font-size:11px;color:var(--txt2)">'+fmt(k.amount)+(kc?' · ⏱ '+kc.tm:'')+'</div></div>'
+              +(acc===true
+                ? '<span class="badge b-done" style="font-size:11px">✅ Đã chấp nhận</span>'
+                : acc===false
+                ? '<span class="badge b-cancel" style="font-size:11px">❌ Đã bỏ qua</span>'
+                : '<div style="display:flex;gap:4px">'
+                  +'<button class="btn btn-p btn-sm" style="font-size:11px;padding:3px 8px" onclick="acceptKH('+si+','+ki+')">✅</button>'
+                  +'<button class="btn btn-sm" style="font-size:11px;padding:3px 8px" onclick="skipKH('+si+','+ki+')">✕</button>'
+                  +'</div>')
+              +'</div>';
+          }).join('')}
+          <div style="margin-top:6px">
+            <div style="height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
+              <div style="width:${Math.min(pct,100).toFixed(1)}%;height:100%;background:${pct>=99?'var(--grn)':pct>=85?'var(--amb)':'var(--blu)'};border-radius:3px"></div>
+            </div>
+            <div style="font-size:11px;color:var(--txt2);margin-top:3px">${pct.toFixed(1)}% công nợ${diff>0?' · Còn thiếu: '+fmt(diff):' · ✅ Đủ'}</div>
+          </div>
+        </div>
+        <div style="padding:12px 16px">
+          <div style="font-size:10px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Độ phù hợp</div>
+          <div style="margin-bottom:10px">
+            <div style="font-size:11px;color:var(--txt2);margin-bottom:3px">⏱ Thời gian</div>
+            ${scoreBar(Math.max(sug.tf,0))}
+            <div style="font-size:11px;color:var(--txt2);margin-top:2px">${tfLabels[sug.tf]||''}</div>
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--txt2);margin-bottom:3px">💰 Số tiền</div>
+            ${scoreBar(sug.as)}
+            <div style="font-size:11px;color:var(--txt2);margin-top:2px">${asLabels[sug.as]||''}</div>
+          </div>
+          ${sug.note ? '<div style="margin-top:10px;padding:6px 8px;background:var(--blu2);border-radius:6px;font-size:11px;color:var(--blu3);line-height:1.5">'+sug.note+'</div>' : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  el('sug-content').innerHTML = html;
+}
+
+function acceptKH(si, ki){
+  const sug = _suggestions[si]; const k = sug.khs[ki];
+  if(!sug.sup.idCK) sug.sup.idCK = gid(sug.sup.type==='Sup'?'Sup':'MH');
+  sug.sup.status = 'Đã điều phối';
+  const existing = D.kh.find(x=>x._id===k._id||x.name===k.name);
+  if(existing){ existing.idCK=sug.sup.idCK; existing.stk=sug.sup.stk; existing.cdAm=k.amount; existing.status='Chờ khách CK'; }
+  k._sug_accepted = true;
+  renderSuggest(); rt2(); rt1(); rd0(); autosave();
+  toast('✅ Đã ghép '+k.name+' → '+sug.sup.name+' (ID: '+sug.sup.idCK+')');
+}
+function skipKH(si, ki){ _suggestions[si].khs[ki]._sug_accepted=false; renderSuggest(); }
+function acceptSuggestion(i){ _suggestions[i].khs.forEach((_,ki)=>{ if(_suggestions[i].khs[ki]._sug_accepted===undefined) acceptKH(i,ki); }); }
+function skipSuggestion(i){ _suggestions[i].khs.forEach((_,ki)=>skipKH(i,ki)); }
+function acceptAllSuggestions(){
+  _suggestions.forEach((_,si)=>{ _suggestions[si].khs.forEach((_,ki)=>{ if(_suggestions[si].khs[ki]._sug_accepted===undefined) acceptKH(si,ki); }); });
+  toast('✅ Đã chấp nhận tất cả gợi ý');
+}
+
+function savePartner(){
+  const n = el('ap_name').value.trim();
+  if(!n){ toast('Nhập tên đối tác', true); return; }
+  D.partners.push({type:el('ap_type').value, name:n, stk:el('ap_stk').value, tm:el('ap_tm').value, am:el('ap_am').value});
+  closeM('m-add-partner');
+  ['ap_name','ap_stk'].forEach(x=>el(x).value='');
+  rt5(); toast('✅ Đã thêm đối tác');
+}
+
+function saveKhChar(){
+  const n = el('ac_name').value.trim();
+  if(!n){ toast('Nhập tên KH', true); return; }
+  D.khChars.push({ch:el('ac_ch').value, name:n, tm:el('ac_tm').value, am:el('ac_am').value});
+  closeM('m-add-kh-char');
+  ['ac_name','ac_tm','ac_am'].forEach(x=>el(x).value='');
+  rt5(); toast('✅ Đã thêm khách hàng');
+}
+
+/* ================================================
+   CHI TIẾT SUP/MH
+   ================================================ */
+function editStk(supId){
+  const s = D.sup.find(x=>x.id===supId);
+  if(!s) return;
+  const existing = el('m-edit-stk');
+  if(existing) existing.remove();
+
+  const pchar = D.partners.find(p=>p.name===s.name);
+
+  const modal = document.createElement('div');
+  modal.className = 'modbg on';
+  modal.id = 'm-edit-stk';
+  modal.innerHTML = `
+    <div class="mod" style="width:560px">
+      <button class="xbtn" onclick="document.getElementById('m-edit-stk').remove()">×</button>
+      <h2>✏️ Sửa công nợ Sup/MH</h2>
+      <div class="fg">
+        <div class="fr"><label>Ngày</label>
+          <input type="date" id="es_date" value="${s.date||''}"/>
+        </div>
+        <div class="fr"><label>Nhân viên</label>
+          <input id="es_nv" value="${s.nv||''}"/>
+        </div>
+      </div>
+      <div class="fg">
+        <div class="fr"><label>Loại đối tác</label>
+          <select id="es_type">
+            <option ${s.type==='Sup'?'selected':''}>Sup</option>
+            <option ${s.type==='Mua hộ'?'selected':''}>Mua hộ</option>
+          </select>
+        </div>
+        <div class="fr"><label>Tên đối tác</label>
+          <input id="es_name" value="${s.name||''}" list="dl-partners"/>
+        </div>
+      </div>
+      <div class="fr"><label>Công nợ (VNĐ)</label>
+        <input type="text" id="es_amount" value="${fmtInput(s.amount)}" oninput="formatCurrencyInput(this)"/>
+      </div>
+      <div class="fr"><label>STK nhận tiền (Ngân hàng – STK – Tên chủ TK – ND CK)</label>
+        <textarea id="es_stk" rows="3" style="font-size:13px">${s.stk||''}</textarea>
+      </div>
+      <div class="fg">
+        <div class="fr"><label>Tình trạng</label>
+          <select id="es_status">
+            <option ${s.status==='Chờ điều phối'?'selected':''}>Chờ điều phối</option>
+            <option ${s.status==='Đã điều phối'?'selected':''}>Đã điều phối</option>
+            <option ${s.status==='CK 1 phần'?'selected':''}>CK 1 phần</option>
+            <option ${s.status==='Done'?'selected':''}>Done</option>
+            <option ${s.status==='CK dư'?'selected':''}>CK dư</option>
+            <option ${s.status==='Cancelled'?'selected':''}>Cancelled</option>
+          </select>
+        </div>
+        <div class="fr"><label>ID CK</label>
+          <input id="es_idck" value="${s.idCK||''}" placeholder="Tự động tạo nếu để trống"/>
+        </div>
+      </div>
+      <div class="fr"><label>Ghi chú</label>
+        <input id="es_note" value="${s.note||''}"/>
+      </div>
+      ${pchar ? `<div style="padding:10px 12px;background:var(--pur2);border:1px solid #AFA9EC;border-radius:var(--r);font-size:12px;margin-bottom:4px">
+        📋 Đặc điểm đòi tiền: <b>${pchar.tm}</b> · <b>${pchar.am}</b>
+      </div>` : ''}
+      <div class="mact">
+        <button class="btn" onclick="document.getElementById('m-edit-stk').remove()">Hủy</button>
+        <button class="btn btn-p" onclick="saveEditStk('${supId}')">💾 Lưu</button>
+      </div>
+    </div>`;
+  modal.addEventListener('click', function(e){ if(e.target===this) this.remove(); });
+  document.body.appendChild(modal);
+}
+
+function saveEditStk(supId){
+  const s = D.sup.find(x=>x.id===supId);
+  if(!s) return;
+  s.date   = el('es_date').value;
+  s.nv     = el('es_nv').value.trim();
+  s.type   = el('es_type').value;
+  s.name   = el('es_name').value.trim();
+  s.amount = parseInt((el('es_amount').value||'').replace(/\D/g,''))||0;
+  s.stk    = el('es_stk').value.trim();
+  s.status = el('es_status').value;
+  s.idCK   = el('es_idck').value.trim();
+  s.note   = el('es_note').value.trim();
+  // Update linked KH STK if changed
+  D.kh.filter(k=>k.idCK===s.idCK).forEach(k=>{ k.stk=s.stk; });
+  document.getElementById('m-edit-stk').remove();
+  rt1(); rt2(); autosave();
+  toast('✅ Đã cập nhật công nợ Sup/MH');
+}
+
+function delSup(id){
+  if(!confirm('Xoá khoản công nợ này?')) return;
+  D.sup = D.sup.filter(s=>s.id!==id);
+  rt1(); rd0(); autosave();
+  toast('Đã xoá khoản công nợ Sup/MH');
+}
+
+function showDetSup(id){
+  if(!s) return;
+  const bills = D.ck.filter(c=>c.idCK===s.idCK);
+  const cs = calcSupStatus(s);
+  const khList = D.kh.filter(k=>k.idCK===s.idCK&&s.idCK);
+  const modal = document.createElement('div');
+  modal.className='modbg on';
+  modal.innerHTML=`<div class="mod mod-lg" style="max-height:90vh;overflow-y:auto">
+    <button class="xbtn" onclick="this.closest('.modbg').remove()">×</button>
+    <h2>${s.type}: ${s.name}</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="scard" style="padding:12px"><div class="scard-title" style="font-size:11px">Công nợ</div><div style="font-size:18px;font-weight:700">${fmt(s.amount)}</div></div>
+      <div class="scard" style="padding:12px"><div class="scard-title" style="font-size:11px">Đã CK (xác nhận)</div><div style="font-size:18px;font-weight:700;color:${cs.total>0?'var(--grn)':'var(--txt)'}">${fmt(cs.total)}</div></div>
+      <div class="scard" style="padding:12px"><div class="scard-title" style="font-size:11px">Tình trạng</div>${sb(s.status)}<br><span class="idb" style="margin-top:4px;display:inline-block">${s.idCK||'Chưa có ID'}</span></div>
+    </div>
+    <div class="sinfo"><strong>STK nhận tiền</strong>${s.stk||'—'}
+      ${s.stk?`<button class="btn btn-sm" style="margin-top:6px" onclick="copyText('${s.stk.replace(/'/g,'&apos;')}')">📋 Copy</button>`:''}
+    </div>
+    ${khList.length?`<div style="font-weight:600;font-size:13px;margin-bottom:8px">KH đã được gán (${khList.length})</div>${khList.map(k=>`<div style="padding:8px 12px;background:var(--bg2);border-radius:var(--r);margin-bottom:6px;font-size:13px;display:flex;justify-content:space-between"><span>${k.name}</span><span style="color:var(--grn);font-weight:600">${fmt(k.cdAm)}</span></div>`).join('')}`:''}
+    ${bills.length?`<hr class="divider"><div style="font-weight:600;font-size:13px;margin-bottom:8px">Bills CK liên quan (${bills.length})</div>${bills.map(c=>`<div style="padding:8px 12px;border:1px solid var(--brd);border-radius:var(--r);margin-bottom:8px;font-size:13px"><div style="font-weight:600">${c.kh}</div><div style="display:flex;justify-content:space-between;margin-top:4px"><span>${fmt(c.amount)} · ${c.date}</span>${sb(c.status)}</div>${c.link?`<a href="${c.link}" target="_blank" style="font-size:12px;color:var(--grn)">📎 Xem bill</a> <button class="btn btn-sm" onclick="copyText('${c.link}')">📋 Copy link</button>`:''}</div>`).join('')}`:'<div style="padding:16px 0;text-align:center;color:var(--txt2);font-size:13px">Chưa có bill CK</div>'}
+    <div class="mact">
+      <button class="btn" onclick="this.closest('.modbg').remove()">Đóng</button>
+      ${currentRole==='admin'&&s.status!=='Done'?`<button class="btn btn-p" onclick="this.closest('.modbg').remove();go('t2')">🔀 Đến tab Công nợ KH để điều phối</button>`:''}
+    </div>
+  </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click',function(e){if(e.target===this)this.remove();});
+}
+
+/* ================================================
+   INIT: Open modal for bill CK — populate CK IDs
+   ================================================ */
+document.getElementById('mck').querySelector('.modbg, .mod') || document.getElementById('mck');
+el('mck').addEventListener('click',function(e){if(e.target===this)closeM('mck');});
+el('msup').addEventListener('click',function(e){if(e.target===this)closeM('msup');});
+el('mkh').addEventListener('click',function(e){if(e.target===this)closeM('mkh');});
+el('mdp').addEventListener('click',function(e){if(e.target===this)closeM('mdp');});
+el('m-add-partner').addEventListener('click',function(e){if(e.target===this)closeM('m-add-partner');});
+el('m-edit-partner').addEventListener('click',function(e){if(e.target===this)closeM('m-edit-partner');});
+el('m-edit-kh-char').addEventListener('click',function(e){if(e.target===this)closeM('m-edit-kh-char');});
+el('m-edit-ck').addEventListener('click',function(e){if(e.target===this)closeM('m-edit-ck');});
+el('m-add-kh-char').addEventListener('click',function(e){if(e.target===this)closeM('m-add-kh-char');});
+
+// Override openM for mck to populate IDs
+const origOpenM = openM;
+function openM(id){
+  el(id).classList.add('on');
+  if(id==='msup'){ el('i_sd').value=today(); el('sup_char_info').style.display='none'; el('sup_new_fields').style.display='none'; }
+  if(id==='mkh'){  el('i_kd').value=today(); el('kh_char_info').style.display='none'; el('kh_new_fields').style.display='none'; }
+  if(id==='mck'){
+    el('i_cd').value=today();
+    const sel=el('i_cid');
+    sel.innerHTML='<option value="">-- Chọn ID CK --</option>';
+    // All sup entries that have an idCK, sorted newest first
+    const withId = D.sup.filter(s=>s.idCK).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const seen = new Set();
+    withId.forEach(s=>{
+      if(seen.has(s.idCK)) return; seen.add(s.idCK);
+      sel.innerHTML+=`<option value="${s.idCK}">${s.idCK} — ${s.name} (${fmt(s.amount)})</option>`;
+    });
+    el('cid_info').style.display='none';
+  }
+}
+
+/* ================================================
+   SAMPLE DATA
+   ================================================ */
+function loadSample(){
+  D.partners  = [{"type": "Mua hộ", "name": "Nguyễn Công Phước MH", "tm": "Không giục", "am": "Đúng công nợ", "stk": "Techcombank 888888879  Nguyen cong Phuoc ND: NL"}, {"type": "Mua hộ", "name": "Phạm Nam", "tm": "Max 3 ngày", "am": "Đúng công nợ", "stk": "VPBank 0775655566 Pham Thanh Nam ND: NL"}, {"type": "Mua hộ", "name": "Trancy", "tm": "Max 3 ngày", "am": "Đúng công nợ", "stk": "VIB 916260599 Nguyen Giang Ai Tran ND: NL"}, {"type": "Mua hộ", "name": "Nguyễn Hương", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": ""}, {"type": "Mua hộ", "name": "Hao Trieu", "tm": "Max 3 ngày", "am": "Đúng công nợ", "stk": "Techcombank 19032890539017  Trieu Quang Hao ND: NL"}, {"type": "Mua hộ", "name": "Minh Thuận", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": ""}, {"type": "Sup", "name": "Nguyễn Công Phước GC", "tm": "Trong ngày", "am": "Không y/c min", "stk": "Techcombank 19038310248019  Nguyen Cong Phuoc ND: TD"}, {"type": "Sup", "name": "Khắc Lệ", "tm": "Max 3 ngày", "am": "Không y/c min", "stk": "Techcombank 19032782875019 Pham Khac Le ND: TD"}, {"type": "Sup", "name": "Nguyễn Phong", "tm": "Không giục", "am": "Không y/c min", "stk": "Vietcombank 1035376951  Nguyen Van Phong ND: TD"}, {"type": "Sup", "name": "Dương Đông", "tm": "Max 3 ngày", "am": "Không y/c min", "stk": "VIB 988126364 Ly Duong Ky ND: TD"}, {"type": "Sup", "name": "Hieu Le", "tm": "Không giục", "am": "Không y/c min", "stk": "BIDV  13010002045484  Lê Minh Hiếu ND:TD"}, {"type": "Sup", "name": "Dương Minh", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "Techcombank 8686867979  Pham Yen Vy ND: TD"}, {"type": "Sup", "name": "Nguyen Duc Duy", "tm": "Max 3 ngày", "am": "Không y/c min", "stk": "Techcombank 2266799799 Nguyen Duc Duy ND: TD"}, {"type": "Sup", "name": "Lan Hương Anh", "tm": "Không giục", "am": "USDT", "stk": "0x57ba425873cbddf582802acabdbe86ee189d54e2 Bep20"}, {"type": "Sup", "name": "Đặng Quang Đông", "tm": "Trong ngày", "am": "Không y/c min", "stk": "Vietinbank 107875007358 Dang Quang Nam ND: TD"}, {"type": "Sup", "name": "Binh Thanh", "tm": "Trong ngày", "am": "Không y/c min", "stk": "VPBank 337125387   Vo Vu Thu Tam ND: TD"}, {"type": "Sup", "name": "Ngàn Nhật Đinh", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "MBBank Dinh Ngan Nhat 0702499996 ND:TD"}, {"type": "Sup", "name": "Hoàng Lâm", "tm": "Không giục", "am": "Không y/c min", "stk": "Techcombank 2888999996  Dang Hoang Lam ND: TD"}, {"type": "Sup", "name": "Nguyên Nguyễn", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "VPBank 266917139 Nguyễn Ngọc Mai ND:TD"}, {"type": "Sup", "name": "Kiên Nguyễn", "tm": "Không giục", "am": "Không y/c min", "stk": "Techcombank 888789 Nguyen Trung Kien ND: TD"}, {"type": "Sup", "name": "Anh Linh", "tm": "Không giục", "am": "Đúng công nợ", "stk": "VIB 854128128 Cao Thi Trang ND: TD"}, {"type": "Sup", "name": "Nguyễn Hoàng Ngọc Quang", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "VIB 582149249  Nguyen Hoang Ngoc Quang ND: TD"}, {"type": "Sup", "name": "Tiêu Văn Quyền", "tm": "Không giục", "am": "Không y/c min", "stk": "BIDV 2202868030 Tieu Van Quyen ND: TD"}, {"type": "Sup", "name": "Đỗ Hậu", "tm": "Max 3 ngày", "am": "Không y/c min", "stk": "VPBank 145551315 Do Van Hau ND:TD"}, {"type": "Sup", "name": "Đặng Quang Lý", "tm": "Trong ngày", "am": "Không y/c min", "stk": "Techcombank 2456789 Dang Quang Ly ND: TD"}, {"type": "Sup", "name": "Dung Anh Tran", "tm": "Trong ngày", "am": "Không y/c min", "stk": "Vietcombank 0051000563887 Tran Kim Trong ND:TD"}, {"type": "Sup", "name": "Lê Hồng Quang", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "Mỗi lần 1 stk"}, {"type": "Sup", "name": "Lê Thành", "tm": "Trong ngày", "am": "Đúng công nợ", "stk": "Techcombank 4127686868 Le Van Thanh ND: TD"}];
+  D.khChars   = [{"ch": "Linh Thảo", "name": "Phạm Minh - 0796466689", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Thảo", "name": "Cjp Nguyen - 0919098428", "tm": "Giục nhiều lần", "am": "20 - 30tr"}, {"ch": "Linh Thảo", "name": "Trangtrang Quynh - 0829850596", "tm": "Trong ngày", "am": "Min 10tr"}, {"ch": "Linh Thảo", "name": "Lan Anh Nguyen - 0942528883", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Thảo", "name": "Uyen - 0786541443", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Thảo", "name": "Thuy Linh Bui - 0834194397", "tm": "Trong ngày", "am": "Min 10tr"}, {"ch": "Linh Thảo", "name": "Phương - 0983842809", "tm": "1-2 ngày", "am": "Min 10tr"}, {"ch": "Linh Thảo", "name": "Tú Võ -  0398110019", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Thảo", "name": "Thùy Dươngg - 0983791530", "tm": "1-2 ngày", "am": "Min 10tr"}, {"ch": "Linh Thảo", "name": "Xa Thanh Huyền - 0984483900", "tm": "Trong ngày", "am": "< 10tr"}, {"ch": "Linh Thảo", "name": "Mẹ Tin Bắp - 0909026200", "tm": "Trong ngày", "am": "< 10tr"}, {"ch": "Linh Thảo", "name": "Huyen Tran - 0917763020", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Nguyen My Trang - 0903282468", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Tú Vũ - 0328872654", "tm": "3-5 ngày", "am": "30 - 50tr"}, {"ch": "Linh Duong", "name": "Thảo Vân Lê - 0329113755", "tm": "1-2 ngày", "am": "20 - 30tr"}, {"ch": "Linh Duong", "name": "Nguyễn Anh Tú (Libianca) - 0978040653", "tm": "Trong ngày", "am": "20 - 30tr"}, {"ch": "Linh Duong", "name": "Hoàng Giang - 0942349899", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Nguyễn Khánh Linh - 0837162005", "tm": "Trong ngày", "am": "Min 10tr"}, {"ch": "Linh Duong", "name": "Sáng Kim - 0919219529", "tm": "1-2 ngày", "am": "Min 10tr"}, {"ch": "Linh Duong", "name": "Nguyễn Vân Trang - 0357903939", "tm": "1-2 ngày", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Yen Tran CTV - 0978662285", "tm": "3-5 ngày", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Linh Bi - 0896313888", "tm": "3-5 ngày", "am": "Min 10tr"}, {"ch": "Linh Duong", "name": "Minh Hương - 0842689186", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Van Us - 0945665558", "tm": "Giục nhiều lần", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Tra Truong - 0908633163", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Thùy Duyên - 00904024169", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Nguyễn Vân Huy - 0862520733", "tm": "Trong ngày", "am": "Min 10tr"}, {"ch": "Linh Duong", "name": "Dương Thùy Linh - 0904239192", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Hằng Thị Phạm - 0936929339", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Nhung Tran - 0968327619", "tm": "Trong ngày", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Thanh Trúc - 0787315293", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Kim Duong Nguyen - 0972956666", "tm": "3-5 ngày", "am": "20 - 30tr"}, {"ch": "Linh Duong", "name": "Mỹ Duyên Ngọc Bích - 0982893428", "tm": "3-5 ngày", "am": "Min 10tr"}, {"ch": "Linh Duong", "name": "Huyền Phan - 0971815398", "tm": "1-2 ngày", "am": "< 10tr"}, {"ch": "Linh Duong", "name": "Dung Thuy Nguyen - 0385688565", "tm": "3-5 ngày", "am": "< 10tr"}, {"ch": "Checkout", "name": "Trịnh Bá Quyền - 0901223333", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thy Ba - 0935987879", "tm": "3-5 ngày", "am": "Min 10tr"}, {"ch": "Checkout", "name": "Bách Checkout - 0916179999", "tm": "Trong ngày", "am": "30 - 50tr"}, {"ch": "Checkout", "name": "Kim Hân - 0949667724", "tm": "1-2 ngày", "am": "Min 10tr"}, {"ch": "Checkout", "name": "HA Thu Huyền - 0983812318", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thảo Nguyên Nguyên - 0918288102", "tm": "1-2 ngày", "am": "20 - 30tr"}, {"ch": "Checkout", "name": "Uyên Đàm - 0989802497", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Ly - 0474946393", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Trịnh Hiền - 0966628989", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Dương Trà SỈ - 0922311996", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phí Đăng Luận - 0985034830", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hằng Nguyễn - 0904289890", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hien Duong - 0983136636", "tm": "Giục nhiều lần", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hiệp Nguyễn - 5038889978", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hương Nguyễn - 0982898920", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Checkout", "name": "HATT Thu Nguyễn - 0948385557", "tm": "1-2 ngày", "am": "Min 10tr"}, {"ch": "Checkout", "name": "Chị Huong Nguyenn - 0988092545", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Tống Khánh Ly - 0945645210", "tm": "3-5 ngày", "am": "20 - 30tr"}, {"ch": "Checkout", "name": "Thơ Phan - 0964450900", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HATT Nhung - 0907060691", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thuỳ Đặng - 0975684877", "tm": "Giục nhiều lần", "am": "20 - 30tr"}, {"ch": "Checkout", "name": "Trần Quang Huy - 0932211279", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Vivian Nguyen - 0909057476", "tm": "Giục nhiều lần", "am": "< 10tr"}, {"ch": "Checkout", "name": "La My - 0766565899", "tm": "3-5 ngày", "am": "Min 10tr"}, {"ch": "Checkout", "name": "Chung Anh - 0916014061", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Joo - 0908556131", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Dâu Tây Nhỏ - 0943465688", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phan Thanh Nga (Pu) - 0379237959", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HAHS Nguyen Chi - 0932602185", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HAKH Chi Đỗ - 0972512043", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Hồng Nhung Trần -  0968327619", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nguyễn Thị Lê Thu - 0907979622", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HATT Hân Nguyễn - 0986953599", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Đình Lâm - 00982629656", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nhu Quynh - 0945102255", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nx Phuong - 0385576666", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Caroline XuXi - 0899956899", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Huong Tra Phan - 0961001486", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Mỹ Duyên - 0366078978", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Trang Nguyễn - 0904901212", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Amy Ngo - 0932174074", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HAMT Phương Nhi - 0914005731", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thảo Tây - 0772793193", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Ngô Thị Thu Hoài - 0979915855", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hong Thanh - 0909822205", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Nguyễn Xuân Bách - 0942391352", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Anh Tâm Cigars- 0911246789", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thanh Thảo - 0774912219", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phan Nhi - 0703537174", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Dung Nguyễn - 0981543095", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HA Bao Han - 00989399104", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thoa Pham - 0971201521", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Đỗ Ngọc Thúy - 0376941841", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Duong", "name": "Selena Nguyen - 0939244082", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Anh Duy Bùi - 0356221310", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Quỳnh Anh Phạm - 0969044554", "tm": "Trong ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HAKH Thanh Nhàn - 0902951995", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Trung Nguyen - 9713251765", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "HATT Quyên Dương - 0967718911", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Ha Li - 0979909937", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Thanh Hà Nguyễn - 0912536888", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Đồng Hằng - 0389906526", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Tran Ngoc Thao - 0902445547", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hải Yến - 0965255155", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Vy Phượng - 0916616778", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phan Thi Hong Ha - 0982488760", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Dinh Thang - 0947574515", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phạm Bích Thúy - 0989129520", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Đặng Kim Anh - 0915382382", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Linh Thảo", "name": "Nguyễn Đặng Thơ Thơ - 0979580511", "tm": "Trong ngày", "am": "30 - 50tr"}, {"ch": "Checkout", "name": "Bành Hoàng Nhi - 0975462142", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Mai Việt - 0898606003", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Kim Thi - 0963578996", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nga Nguyễn - 0366966025", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Phạm Thi Thu Hoài - 00975647321", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Ly Mailinh - 0907018009", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nguyễn Anh - 0982899221", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Do Hoai Thu - 0977384542", "tm": "3-5 ngày", "am": "20 - 30tr"}, {"ch": "Checkout", "name": "Lyna Mhm - 0938525789", "tm": "1-2 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Hanh Moon - 0977865225", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Dao Thuy Dung - 0906204366", "tm": "3-5 ngày", "am": "Đúng công nợ"}, {"ch": "Checkout", "name": "Nguyễn Thu Thảo - 0906982184", "tm": "1-2 ngày", "am": "Đúng công nợ"}];
+  if(loadFromStorage()){
+    refreshDataLists(); ensureKhIds(); recalcAllSupStatuses(); rd0(); return;
+  }
+  D.sup = [{"id": "s0101", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Lê Thành", "amount": 5900000, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060601", "note": ""}, {"id": "s0102", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Anh Linh", "amount": 21540745, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060602", "note": ""}, {"id": "s0103", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Hieu Le", "amount": 75527967, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060603", "note": ""}, {"id": "s0104", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Tiêu Văn Quyền", "amount": 5565395, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060604", "note": ""}, {"id": "s0105", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Hoàng Lâm", "amount": 55903524, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060605", "note": ""}, {"id": "s0106", "date": "2026-06-06", "nv": "Huệ", "type": "Mua hộ", "name": "Nguyễn Công Phước", "amount": 611851620, "stk": "", "status": "Chờ điều phối", "idCK": "NL26060606", "note": ""}, {"id": "s0107", "date": "2026-06-06", "nv": "Huệ", "type": "Mua hộ", "name": "Phạm Nam", "amount": 4282176, "stk": "", "status": "Chờ điều phối", "idCK": "NL26060607", "note": ""}, {"id": "s0108", "date": "2026-06-06", "nv": "Huệ", "type": "Mua hộ", "name": "Trancy", "amount": 20986083, "stk": "", "status": "Chờ điều phối", "idCK": "NL26060608", "note": ""}, {"id": "s0109", "date": "2026-06-06", "nv": "Huệ", "type": "Mua hộ", "name": "Hao Trieu", "amount": 1249880, "stk": "", "status": "Chờ điều phối", "idCK": "NL26060609", "note": ""}, {"id": "s0110", "date": "2026-06-06", "nv": "Trang", "type": "Sup", "name": "Đặng Quang Đông", "amount": 22542500, "stk": "", "status": "Chờ điều phối", "idCK": "TD26060610", "note": ""}];
+  D.kh  = [{"_id": "kh0000", "date": "2026-06-06", "nv": "Bình", "name": "Selena Nguyen - 0939244082", "amount": 39000000, "origAmount": 39000000, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0001", "date": "2026-06-06", "nv": "Bình", "name": "Kim Duong Nguyen - 0972956666", "amount": 100000000, "origAmount": 100000000, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0002", "date": "2026-06-06", "nv": "Bình", "name": "Nguyễn Anh Tú (Libianca) - 0978040653", "amount": 7000000, "origAmount": 7000000, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0003", "date": "2026-06-06", "nv": "Bình", "name": "Hồng Nhung Trần -  0968327619", "amount": 7000000, "origAmount": 7000000, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0004", "date": "2026-06-06", "nv": "Bình", "name": "Nguyễn Vân Trang - 0357903939", "amount": 8281144, "origAmount": 8281144, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0005", "date": "2026-06-06", "nv": "Thuỷ", "name": "Thảo Nguyên Nguyên - 0918288102", "amount": 63911866, "origAmount": 63911866, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0006", "date": "2026-06-06", "nv": "Thuỷ", "name": "HATT Thu Nguyễn - 0948385557", "amount": 47849829, "origAmount": 47849829, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0007", "date": "2026-06-06", "nv": "Thuỷ", "name": "Hương Nguyễn - 0982898920", "amount": 38848303, "origAmount": 38848303, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0008", "date": "2026-06-06", "nv": "Thuỷ", "name": "Kim Hân - 0949667724", "amount": 28234015, "origAmount": 28234015, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0009", "date": "2026-06-06", "nv": "Thuỷ", "name": "La My - 0766565899", "amount": 24583590, "origAmount": 24583590, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0010", "date": "2026-06-06", "nv": "Thuỷ", "name": "Trung Nguyen - 9713251765", "amount": 16287840, "origAmount": 16287840, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0011", "date": "2026-06-06", "nv": "Thuỷ", "name": "HAHS Nguyen Chi - 0932602185", "amount": 12346200, "origAmount": 12346200, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0012", "date": "2026-06-06", "nv": "Thuỷ", "name": "Hanh Moon - 0977865225", "amount": 4850800, "origAmount": 4850800, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0013", "date": "2026-06-06", "nv": "Thuỷ", "name": "Thuỳ Đặng - 0975684877", "amount": 11386850, "origAmount": 11386850, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0014", "date": "2026-06-06", "nv": "Thuỷ", "name": "Thanh Hà Nguyễn - 0912536888", "amount": 10753800, "origAmount": 10753800, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0015", "date": "2026-06-06", "nv": "Thuỷ", "name": "Dâu Tây Nhỏ - 0943465688", "amount": 10217340, "origAmount": 10217340, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0016", "date": "2026-06-06", "nv": "Thuỷ", "name": "Thoa Pham - 0971201521", "amount": 10486890, "origAmount": 10486890, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0017", "date": "2026-06-06", "nv": "Thuỷ", "name": "Dương Trà SỈ - 0922311996", "amount": 6899320, "origAmount": 6899320, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0018", "date": "2026-06-06", "nv": "Thuỷ", "name": "Nhu Quynh - 0945102255", "amount": 6580390, "origAmount": 6580390, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0019", "date": "2026-06-06", "nv": "Thuỷ", "name": "Nguyễn Thu Thảo - 0906982184", "amount": 5623221, "origAmount": 5623221, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0020", "date": "2026-06-06", "nv": "Bình", "name": "Van Us - 0945665558", "amount": 30931055, "origAmount": 30931055, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}, {"_id": "kh0021", "date": "2026-06-06", "nv": "Bình", "name": "Thảo Vân Lê - 0329113755", "amount": 4000000, "origAmount": 4000000, "status": "Mới nhập", "idCK": "", "stk": "", "cdAm": 0, "note": ""}];
+  D.ck  = [];
+  D.ctr = 82;
+  refreshDataLists(); ensureKhIds(); recalcAllSupStatuses(); rd0();
+}
+function saveToStorage(){
+  try {
+    const payload = { sup: D.sup, kh: D.kh, ck: D.ck, ctr: D.ctr };
+    localStorage.setItem(LS_KEY, JSON.stringify(payload));
+  } catch(e){ /* quota exceeded or private mode */ }
+}
+
+function loadFromStorage(){
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return false;
+    const p = JSON.parse(raw);
+    D.sup = p.sup || [];
+    D.kh  = p.kh  || [];
+    D.ck  = p.ck  || [];
+    D.ctr = p.ctr || 1;
+    // Enrich STK from partners list (already loaded into D.partners before this call)
+    D.sup.forEach(s => {
+      if(!s.stk){
+        const partner = D.partners.find(pt => pt.name === s.name);
+        if(partner && partner.stk) s.stk = partner.stk;
+      }
+    });
+    return true;
+  } catch(e){ return false; }
+}
+
+// Patch all data-mutating functions to auto-save
+function autosave(){ saveToStorage(); }
+
+// Show login screen on startup
+el('login-screen').style.display = 'flex';
+// loadSample() will be called after login
+</script>
+</body>
+</html>
