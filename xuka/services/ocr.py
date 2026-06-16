@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass
 
 import google.generativeai as genai
@@ -13,7 +14,9 @@ from xuka.config import GEMINI_API_KEY
 GEMINI_MODEL = "gemini-2.5-flash"
 # Hard timeout (seconds) for the Gemini Vision call. Without this the SDK can
 # hang indefinitely on a stalled connection and block the bot's event loop.
-GEMINI_TIMEOUT_SEC = 60
+GEMINI_TIMEOUT_SEC = 120
+# Retry on timeout before giving up.
+GEMINI_MAX_RETRIES = 2
 
 logger = logging.getLogger(__name__)
 
@@ -129,19 +132,36 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
 
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(GEMINI_MODEL)
-    response = model.generate_content(
-        [
-            {"mime_type": media_type, "data": image_bytes},
-            VISION_PROMPT,
-        ],
-        generation_config={
-            "max_output_tokens": 8192,
-            "response_mime_type": "application/json",
-        },
-        request_options={"timeout": GEMINI_TIMEOUT_SEC},
-    )
 
-    raw = (response.text or "").strip()
+    last_exc: Exception | None = None
+    response = None
+    for attempt in range(1, GEMINI_MAX_RETRIES + 1):
+        try:
+            response = model.generate_content(
+                [
+                    {"mime_type": media_type, "data": image_bytes},
+                    VISION_PROMPT,
+                ],
+                generation_config={
+                    "max_output_tokens": 8192,
+                    "response_mime_type": "application/json",
+                },
+                request_options={"timeout": GEMINI_TIMEOUT_SEC},
+            )
+            break
+        except Exception as e:
+            err_str = str(e).lower()
+            if "timeout" in err_str or "timed out" in err_str or "deadline" in err_str:
+                last_exc = e
+                logger.warning("Gemini timeout (attempt %d/%d): %s", attempt, GEMINI_MAX_RETRIES, e)
+                if attempt < GEMINI_MAX_RETRIES:
+                    time.sleep(3)
+            else:
+                raise
+    else:
+        raise last_exc  # type: ignore[misc]
+
+    raw = (response.text or "").strip()  # type: ignore[union-attr]
     finish_reason = (
         response.candidates[0].finish_reason.name
         if response.candidates
