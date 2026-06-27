@@ -240,7 +240,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• Kiểm tra card → bấm ✅ Lưu hoặc 📝 Sửa\n\n"
         "*✍️ KÈM GHI CHÚ CHO ẢNH*\n"
         "• Cách 1: Gửi ảnh kèm caption\n"
-        "• Cách 2: Gửi ảnh không caption → gửi text trong 30s tiếp theo\n"
+        "• Cách 2: Gửi ảnh không caption → gửi text trong 20s tiếp theo\n"
         "• Album nhiều ảnh + 1 caption → caption áp dụng cho tất cả ảnh\n\n"
         "*💵 VIẾT TẮT SỐ TIỀN*\n"
         "`5tr` = `5 tr` = `5 triệu` = 5,000,000\n"
@@ -415,8 +415,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             # Single photo with caption → process immediately
             await _process_photo_entry(msg, chat_id, ocr, image_url, caption, progress)
         else:
-            # Single photo, no caption → wait up to 30s for next text message
-            await progress.edit_text("⏳ Đã đọc ảnh. Đợi ghi chú trong 30s... (gửi text để thêm ghi chú)")
+            # Single photo, no caption → wait up to 20s for next text message
+            await progress.edit_text("⏳ Đã đọc ảnh. Đợi ghi chú trong 20s... (gửi text để thêm ghi chú)")
             task = asyncio.create_task(
                 _wait_for_caption(msg, chat_id, ocr, image_url, progress, context)
             )
@@ -437,9 +437,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def _wait_for_caption(msg, chat_id: int, ocr, image_url: str, progress, context):
-    """Wait 30s for a text message to use as caption. If timeout, process without caption."""
+    """Wait 20s for a text message to use as caption. If timeout, process without caption."""
     try:
-        await asyncio.sleep(30)
+        await asyncio.sleep(20)
         # Timeout: process without caption
         if chat_id in pending_photos and pending_photos[chat_id].get("ocr") is ocr:
             pending_photos.pop(chat_id, None)
