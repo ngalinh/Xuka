@@ -172,7 +172,7 @@ def get_unique_danh_muc(loai: str) -> list[str]:
     return _unique_danh_muc_thu if loai == "Thu" else _unique_danh_muc_chi
 
 
-EXTRA_PTTT = ["Khách trả"]
+EXTRA_PTTT = ["Khách trả", "MB VTHP"]
 
 
 def get_unique_pttt() -> list[str]:
