@@ -264,9 +264,9 @@ def append_entry(
     final_gc = nguoi_nhan if nguoi_nhan else ghi_chu
     col_a = ws.col_values(1)
     new_row = len(col_a) + 1
-    ws.insert_rows(
+    ws.update(
         [[thang, _ngay_to_formula(ngay_tt), nganh_nghe, danh_muc, noi_dung, thu, chi, pttt, final_gc]],
-        row=new_row,
+        f"A{new_row}",
         value_input_option="USER_ENTERED",
     )
     _apply_date_format(ws, new_row)
@@ -342,7 +342,7 @@ def append_entries(entries: list[dict[str, Any]]) -> None:
         # Determine start row before appending
         col_a = ws.col_values(1)
         start_row = len(col_a) + 1
-        ws.insert_rows(rows, row=start_row, value_input_option="USER_ENTERED")
+        ws.update(rows, f"A{start_row}", value_input_option="USER_ENTERED")
         # Apply date format to new rows
         for i in range(len(rows)):
             _apply_date_format(ws, start_row + i)
