@@ -70,9 +70,27 @@ def map_entry(
     confidence = 0
     source = "none"
 
-    # 1. Sheet history by NOI_DUNG (text content) - HIGHEST priority
+    # 1. Bot Memory (explicit user preference — highest trust, updated on every confirmed save)
+    mem = memory_lookup(nguoi_nhan) if nguoi_nhan else None
+    if mem and mem.get("nganh_nghe"):
+        m_dm = mem.get("danh_muc", "")
+        if _matches_loai(m_dm, loai):
+            nn = mem["nganh_nghe"]
+            dm = m_dm
+            pt = mem.get("pttt", "")
+            confidence = min(95, 75 + mem.get("count", 1) * 5)
+            source = "memory"
+            logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
+        else:
+            logger.info("Memory match REJECTED (loai=%s but dm=%r): %s",
+                        loai, m_dm, nguoi_nhan)
+            pt = mem.get("pttt", "")
+    elif nguoi_nhan:
+        logger.info("[MAP-MISS] memory miss nguoi_nhan=%r", nguoi_nhan)
+
+    # 2. Sheet history by NOI_DUNG (text content)
     # If noi_dung matches a known content (e.g. "Binh Thanh"), use that
-    if noi_dung:
+    if not nn and noi_dung:
         hist = find_mapping(noi_dung)
         if hist:
             h_nn, h_dm, h_pt = hist
@@ -85,28 +103,9 @@ def map_entry(
                 logger.info("Text history match REJECTED (loai=%s but dm=%r): %s",
                             loai, h_dm, noi_dung)
                 # Keep PTTT from history even if dm direction is wrong
-                pt = h_pt
+                pt = pt or h_pt
         else:
             logger.info("[MAP-MISS] find_mapping miss noi_dung=%r", noi_dung)
-
-    # 2. Bot Memory (by normalized recipient name)
-    if not nn:
-        mem = memory_lookup(nguoi_nhan) if nguoi_nhan else None
-        if mem and mem.get("nganh_nghe"):
-            m_dm = mem.get("danh_muc", "")
-            if _matches_loai(m_dm, loai):
-                nn = mem["nganh_nghe"]
-                dm = m_dm
-                pt = pt or mem.get("pttt", "")
-                confidence = min(95, 70 + mem.get("count", 1) * 5)
-                source = "memory"
-                logger.info("Memory match: %s → %s/%s/%s (count=%d)", nguoi_nhan, nn, dm, pt, mem.get("count", 0))
-            else:
-                logger.info("Memory match REJECTED (loai=%s but dm=%r): %s",
-                            loai, m_dm, nguoi_nhan)
-                pt = pt or mem.get("pttt", "")
-        elif nguoi_nhan:
-            logger.info("[MAP-MISS] memory miss nguoi_nhan=%r", nguoi_nhan)
 
     # 3. Sheet history by recipient name
     if not nn and nguoi_nhan:
