@@ -7,16 +7,28 @@ import re
 import time
 from dataclasses import dataclass
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 
 from xuka.config import GEMINI_API_KEY
 
 GEMINI_MODEL = "gemini-2.5-flash"
-# Hard timeout (seconds) for the Gemini Vision call. Without this the SDK can
-# hang indefinitely on a stalled connection and block the bot's event loop.
+# Hard timeout (seconds) for the Gemini Vision call.
 GEMINI_TIMEOUT_SEC = 120
 # Retry on timeout before giving up.
 GEMINI_MAX_RETRIES = 2
+
+_genai_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    global _genai_client
+    if _genai_client is None:
+        _genai_client = genai.Client(
+            api_key=GEMINI_API_KEY,
+            http_options={"timeout": GEMINI_TIMEOUT_SEC},
+        )
+    return _genai_client
 
 logger = logging.getLogger(__name__)
 
@@ -130,23 +142,24 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
     if not GEMINI_API_KEY:
         raise ValueError("Chưa cấu hình GEMINI_API_KEY")
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(GEMINI_MODEL)
+    client = _get_client()
 
     last_exc: Exception | None = None
     response = None
     for attempt in range(1, GEMINI_MAX_RETRIES + 1):
         try:
-            response = model.generate_content(
-                [
-                    {"mime_type": media_type, "data": image_bytes},
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=[
+                    genai_types.Part.from_bytes(data=image_bytes, mime_type=media_type),
                     VISION_PROMPT,
                 ],
-                generation_config={
-                    "max_output_tokens": 8192,
-                    "response_mime_type": "application/json",
-                },
-                request_options={"timeout": GEMINI_TIMEOUT_SEC},
+                config=genai_types.GenerateContentConfig(
+                    max_output_tokens=8192,
+                    response_mime_type="application/json",
+                    # Disable thinking mode — prevents 30-120s overhead per call
+                    thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
+                ),
             )
             break
         except Exception as e:
