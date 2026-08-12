@@ -213,11 +213,11 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
 
     return OCRResult(
         so_tien=so_tien_final,
-        nguoi_nhan=parsed.get("ten_nguoi_nhan", "").strip(),
-        ngan_hang=parsed.get("ngan_hang", "").strip(),
-        ngay=parsed.get("ngay", "").strip(),
-        noi_dung=parsed.get("noi_dung_ck", "").strip(),
-        loai=parsed.get("loai", "chi").strip().lower(),
+        nguoi_nhan=(parsed.get("ten_nguoi_nhan") or "").strip(),
+        ngan_hang=(parsed.get("ngan_hang") or "").strip(),
+        ngay=(parsed.get("ngay") or "").strip(),
+        noi_dung=(parsed.get("noi_dung_ck") or "").strip(),
+        loai=(parsed.get("loai") or "chi").strip().lower(),
         so_tien_usd=so_tien_usd,
         is_usd_payment=is_usd,
         is_transfer=True,
