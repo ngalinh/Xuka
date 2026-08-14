@@ -165,11 +165,15 @@ def extract_transfer(image_bytes: bytes, media_type: str) -> OCRResult:
             break
         except Exception as e:
             err_str = str(e).lower()
-            if "timeout" in err_str or "timed out" in err_str or "deadline" in err_str:
+            if ("timeout" in err_str or "timed out" in err_str or "deadline" in err_str
+                    or "503" in err_str or "unavailable" in err_str or "resource_exhausted" in err_str
+                    or "429" in err_str):
                 last_exc = e
                 logger.warning("Gemini timeout (attempt %d/%d): %s", attempt, GEMINI_MAX_RETRIES, e)
                 if attempt < GEMINI_MAX_RETRIES:
-                    time.sleep(3)
+                    # 503/unavailable needs longer wait than timeout
+                    delay = 10 if ("503" in err_str or "unavailable" in err_str) else 3
+                    time.sleep(delay)
             else:
                 raise
     else:
