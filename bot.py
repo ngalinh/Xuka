@@ -363,7 +363,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Download photo
         photo = msg.photo[-1]
         file = await context.bot.get_file(photo.file_id)
-        image_bytes = await file.download_as_bytearray()
+        image_bytes = await file.download_as_bytearray(read_timeout=60.0)
         image_url = await _upload_image(bytes(image_bytes), file.file_path)
 
         # OCR — run in a thread; the SDK call is blocking and can stall the
